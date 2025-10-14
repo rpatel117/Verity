@@ -56,3 +56,4 @@ export type LoginFormData = z.infer<typeof LoginSchema>;
 export type SignupFormData = z.infer<typeof SignupSchema>;
 export type GuestEventData = z.infer<typeof GuestEventSchema>;
 export type GuestConfirmData = z.infer<typeof GuestConfirmSchema>;
+

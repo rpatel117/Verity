@@ -89,3 +89,4 @@ export interface GuestConfirmResponse {
   ok: boolean;
   code: string;
 }
+

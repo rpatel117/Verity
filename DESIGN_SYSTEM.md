@@ -254,3 +254,4 @@ text-info
 ```
 
 This design system ensures consistency, accessibility, and a professional appearance that builds trust with users while maintaining the warm, human touch essential for hospitality applications.
+

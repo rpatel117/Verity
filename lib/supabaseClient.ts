@@ -49,3 +49,4 @@ export interface VerificationLog {
   action: "sms_sent" | "code_verified" | "policy_accepted";
   metadata?: Record<string, any>;
 }
+
