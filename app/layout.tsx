@@ -3,12 +3,14 @@ import { GeistSans } from 'geist/font/sans'
 import { GeistMono } from 'geist/font/mono'
 import { Analytics } from '@vercel/analytics/next'
 import { AuthProvider } from '@/src/context/AuthContext'
+import { Toaster } from '@/components/ui/sonner'
+// import { AnimatePresence } from 'framer-motion'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
-  generator: 'v0.app',
+  title: 'Verity - Secure Guest Attestation',
+  description: 'Streamline hotel check-ins with secure SMS-based verification system',
+  generator: 'Next.js',
 }
 
 export default function RootLayout({
@@ -27,9 +29,10 @@ html {
 }
         `}</style>
       </head>
-      <body>
+      <body className="min-h-screen bg-background font-sans antialiased">
         <AuthProvider>
           {children}
+          <Toaster />
         </AuthProvider>
         <Analytics />
       </body>

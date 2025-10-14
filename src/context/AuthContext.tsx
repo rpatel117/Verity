@@ -8,24 +8,17 @@
  */
 
 import React, { createContext, useContext, useState, useEffect } from 'react'
+import type { User } from '@/types'
 
-interface User {
-  id: string
-  email: string
-  name: string
-  provider?: 'email' | 'google' | 'microsoft'
-}
+// User interface is now imported from types
 
 interface AuthContextType {
   user: User | null
   isAuthenticated: boolean
   isLoading: boolean
-  login: (email: string, password: string) => Promise<void>
-  signup: (email: string, password: string, name: string) => Promise<void>
-  loginWithGoogle: () => Promise<void>
-  loginWithMicrosoft: () => Promise<void>
-  devBypass: () => void
-  logout: () => void
+  login: (email: string, password: string, hotelName: string) => Promise<void>
+  signup: (email: string, password: string, name: string, hotelName: string) => Promise<void>
+  logout: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -48,49 +41,40 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Check for existing session on mount
   useEffect(() => {
-    console.log('AuthContext: useEffect running')
     const checkAuth = async () => {
       try {
-        console.log('AuthContext: Checking auth state')
-        // In a real app, this would check Supabase auth state
-        const savedUser = localStorage.getItem('hotel-checkin-user')
+        // Mock auth check - replace with real Supabase auth later
+        const savedUser = localStorage.getItem('verity-user')
         if (savedUser) {
           const userData = JSON.parse(savedUser)
-          console.log('AuthContext: Found saved user:', userData)
           setUser(userData)
-          setIsAuthenticated(true)
-        } else {
-          console.log('AuthContext: No saved user found')
         }
       } catch (error) {
         console.error('Auth check failed:', error)
-        // Clear invalid data
-        localStorage.removeItem('hotel-checkin-user')
       } finally {
-        console.log('AuthContext: Setting loading to false')
         setIsLoading(false)
       }
     }
 
-    // Add small delay to show loading state
-    setTimeout(checkAuth, 100)
+    checkAuth()
   }, [])
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, hotelName: string) => {
     setIsLoading(true)
     try {
-      // Simulate API call - replace with actual Supabase auth
+      // Mock login - replace with real Supabase auth later
       await new Promise(resolve => setTimeout(resolve, 1000))
       
       const userData: User = {
         id: '1',
         email,
         name: email.split('@')[0],
+        hotelName,
         provider: 'email'
       }
       
       setUser(userData)
-      localStorage.setItem('hotel-checkin-user', JSON.stringify(userData))
+      localStorage.setItem('verity-user', JSON.stringify(userData))
     } catch (error) {
       console.error('Login failed:', error)
       throw error
@@ -99,21 +83,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }
 
-  const signup = async (email: string, password: string, name: string) => {
+  const signup = async (email: string, password: string, name: string, hotelName: string) => {
     setIsLoading(true)
     try {
-      // Simulate API call - replace with actual Supabase auth
+      // Mock signup - replace with real Supabase auth later
       await new Promise(resolve => setTimeout(resolve, 1000))
       
       const userData: User = {
         id: '1',
         email,
         name,
+        hotelName,
         provider: 'email'
       }
       
       setUser(userData)
-      localStorage.setItem('hotel-checkin-user', JSON.stringify(userData))
+      localStorage.setItem('verity-user', JSON.stringify(userData))
     } catch (error) {
       console.error('Signup failed:', error)
       throw error
@@ -122,67 +107,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }
 
-  const loginWithGoogle = async () => {
-    setIsLoading(true)
+  const logout = async () => {
     try {
-      // Simulate Google OAuth - replace with actual Supabase OAuth
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      const userData: User = {
-        id: '2',
-        email: 'user@gmail.com',
-        name: 'Google User',
-        provider: 'google'
-      }
-      
-      setUser(userData)
-      localStorage.setItem('hotel-checkin-user', JSON.stringify(userData))
+      // Mock logout - replace with real Supabase auth later
+      setUser(null)
+      localStorage.removeItem('verity-user')
     } catch (error) {
-      console.error('Google login failed:', error)
+      console.error('Logout failed:', error)
       throw error
-    } finally {
-      setIsLoading(false)
     }
-  }
-
-  const loginWithMicrosoft = async () => {
-    setIsLoading(true)
-    try {
-      // Simulate Microsoft OAuth - replace with actual Supabase OAuth
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      const userData: User = {
-        id: '3',
-        email: 'user@outlook.com',
-        name: 'Microsoft User',
-        provider: 'microsoft'
-      }
-      
-      setUser(userData)
-      localStorage.setItem('hotel-checkin-user', JSON.stringify(userData))
-    } catch (error) {
-      console.error('Microsoft login failed:', error)
-      throw error
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const devBypass = () => {
-    const userData: User = {
-      id: 'dev',
-      email: 'dev@hotel.com',
-      name: 'Development User',
-      provider: 'email'
-    }
-    
-    setUser(userData)
-    localStorage.setItem('hotel-checkin-user', JSON.stringify(userData))
-  }
-
-  const logout = () => {
-    setUser(null)
-    localStorage.removeItem('hotel-checkin-user')
   }
 
   const value: AuthContextType = {
@@ -191,9 +124,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isLoading,
     login,
     signup,
-    loginWithGoogle,
-    loginWithMicrosoft,
-    devBypass,
     logout
   }
 

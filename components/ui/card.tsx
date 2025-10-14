@@ -1,17 +1,22 @@
 import * as React from 'react'
+import { motion } from 'framer-motion'
 
 import { cn } from '@/lib/utils'
+import { hoverLift } from '@/lib/motion'
 
 const Card = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
 >(({ className, ...props }, ref) => (
-  <div
+  <motion.div
     ref={ref}
     className={cn(
-      'rounded-lg border bg-card text-card-foreground shadow-sm',
+      'rounded-lg border bg-card text-card-foreground shadow-glass hover:shadow-glass-lg transition-all duration-200',
       className,
     )}
+    variants={hoverLift}
+    initial="initial"
+    whileHover="hover"
     {...props}
   />
 ))
