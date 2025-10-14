@@ -10,7 +10,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { LoginModal } from '@/src/components/LoginModal'
+import { LoginModal } from '@/components/auth/LoginModal'
 import { Shield, Smartphone, FileText, CheckCircle, ArrowRight, Users, Clock, Lock } from 'lucide-react'
 
 export default function LandingPage() {

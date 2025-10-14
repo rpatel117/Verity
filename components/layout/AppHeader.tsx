@@ -8,7 +8,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '@/src/context/AuthContext'
+import { useAuth } from '@/components/auth/AuthContext'
 import { Button } from '@/components/ui/button'
 import { 
   DropdownMenu, 

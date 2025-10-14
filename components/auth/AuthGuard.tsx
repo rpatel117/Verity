@@ -9,7 +9,7 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '@/src/context/AuthContext'
+import { useAuth } from '@/components/auth/AuthContext'
 import { Loader2 } from 'lucide-react'
 
 interface AuthGuardProps {
