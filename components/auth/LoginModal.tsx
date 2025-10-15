@@ -6,7 +6,7 @@
  */
 
 import React, { useState } from 'react'
-import { useAuth } from '@/src/context/AuthContext'
+import { useAuth } from '@/components/auth/AuthContext'
 import { LoginSchema, SignupSchema } from '@/lib/validation'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
