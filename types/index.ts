@@ -17,16 +17,20 @@ export interface AttestationRow {
   sentAt: string;
   verifiedAt?: string;
   eventsCount: number;
+  guestId?: string;
+  dlNumber?: string;
+  dlState?: string;
 }
 
 export interface AttestationEvent {
   id: string;
-  eventType: "page.open" | "geo.capture" | "policy.accept";
+  eventType: "sms.sent" | "sms.status" | "page.open" | "geo.capture" | "policy.accept" | "code.submit";
   createdAt: string;
   ip?: string;
   latitude?: number;
   longitude?: number;
   accuracy?: number;
+  payload?: Record<string, any>;
 }
 
 export interface CheckInFormData {
@@ -88,5 +92,47 @@ export interface GuestEventResponse {
 export interface GuestConfirmResponse {
   ok: boolean;
   code: string;
+}
+
+// New types for Edge Function contracts
+export interface VerifyCodeRequest {
+  attestationId: string;
+  code: string;
+}
+
+export interface VerifyCodeResponse {
+  ok: boolean;
+  verifiedAt?: string;
+  reason?: string;
+}
+
+export interface GuestTokenPayload {
+  attestation_id: string;
+  exp: number;
+  iat: number;
+}
+
+export interface SendAttestationRequest {
+  guest: {
+    fullName: string;
+    phoneE164: string;
+    dlNumber?: string;
+    dlState?: string;
+  };
+  stay: {
+    ccLast4: string;
+    checkInDate: string;
+    checkOutDate: string;
+  };
+  policyText: string;
+}
+
+export interface TwilioStatusCallback {
+  MessageSid: string;
+  MessageStatus: 'queued' | 'sent' | 'delivered' | 'failed' | 'undelivered';
+  To: string;
+  From: string;
+  ErrorCode?: string;
+  ErrorMessage?: string;
 }
 

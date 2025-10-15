@@ -44,9 +44,11 @@ interface DataTableProps {
   data?: AttestationRow[]
   loading?: boolean
   onSelectionChange?: (selectedIds: string[]) => void
+  onLoadMore?: () => void
+  hasMore?: boolean
 }
 
-export function DataTable({ data = [], loading = false, onSelectionChange }: DataTableProps) {
+export function DataTable({ data = [], loading = false, onSelectionChange, onLoadMore, hasMore }: DataTableProps) {
   const [selectedRows, setSelectedRows] = useState<string[]>([])
 
   const handleAddToReport = (attestationId: string) => {
@@ -205,18 +207,29 @@ export function DataTable({ data = [], loading = false, onSelectionChange }: Dat
         </Table>
       </div>
 
-      {/* Compact Pagination */}
+      {/* Load More / Pagination */}
       <div className="flex items-center justify-between text-sm text-gray-600">
         <div>
           Showing {data.length} attestations
         </div>
         <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm" disabled>
-            Previous
-          </Button>
-          <Button variant="outline" size="sm" disabled>
-            Next
-          </Button>
+          {hasMore && onLoadMore && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={onLoadMore}
+              disabled={loading}
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                  Loading...
+                </>
+              ) : (
+                'Load More'
+              )}
+            </Button>
+          )}
         </div>
       </div>
     </div>

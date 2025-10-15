@@ -8,17 +8,19 @@
  */
 
 import React, { createContext, useContext, useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabaseClient'
 import type { User } from '@/types'
-
-// User interface is now imported from types
+import { toast } from 'sonner'
 
 interface AuthContextType {
   user: User | null
   isAuthenticated: boolean
   isLoading: boolean
-  login: (email: string, password: string, hotelName: string) => Promise<void>
+  login: (email: string, password: string) => Promise<void>
   signup: (email: string, password: string, name: string, hotelName: string) => Promise<void>
   logout: () => Promise<void>
+  forgotPassword: (email: string) => Promise<void>
+  resetPassword: (password: string) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -43,11 +45,41 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        // Mock auth check - replace with real Supabase auth later
-        const savedUser = localStorage.getItem('verity-user')
-        if (savedUser) {
-          const userData = JSON.parse(savedUser)
+        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        if (error) {
+          console.error('Auth check failed:', error)
+          setIsLoading(false)
+          return
+        }
+
+        if (session?.user) {
+          console.log('Found existing session for user:', session.user.id)
+          
+          // Get user profile from database
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single()
+
+          if (profileError) {
+            console.error('Profile fetch failed:', profileError)
+            setIsLoading(false)
+            return
+          }
+
+          const userData: User = {
+            id: session.user.id,
+            email: session.user.email!,
+            name: profile.name,
+            hotelName: profile.hotel_name,
+            provider: 'email'
+          }
+
           setUser(userData)
+        } else {
+          console.log('No existing session found')
         }
       } catch (error) {
         console.error('Auth check failed:', error)
@@ -57,26 +89,76 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     checkAuth()
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('Auth state change:', event, session?.user?.id)
+        
+        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
+          console.log('Handling auth event:', event)
+          // Get user profile
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single()
+
+          if (profile) {
+            const userData: User = {
+              id: session.user.id,
+              email: session.user.email!,
+              name: profile.name,
+              hotelName: profile.hotel_name,
+              provider: 'email'
+            }
+            setUser(userData)
+            console.log('User set from auth event:', event)
+          }
+        } else if (event === 'SIGNED_OUT') {
+          console.log('User signed out')
+          setUser(null)
+        }
+        setIsLoading(false)
+      }
+    )
+
+    return () => subscription.unsubscribe()
   }, [])
 
-  const login = async (email: string, password: string, hotelName: string) => {
+  const login = async (email: string, password: string) => {
     setIsLoading(true)
     try {
-      // Mock login - replace with real Supabase auth later
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      const userData: User = {
-        id: '1',
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
-        name: email.split('@')[0],
-        hotelName,
-        provider: 'email'
+        password,
+      })
+
+      if (error) {
+        throw new Error(error.message)
       }
-      
-      setUser(userData)
-      localStorage.setItem('verity-user', JSON.stringify(userData))
+
+      if (data.user) {
+        // Get or create user profile
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', data.user.id)
+          .single()
+
+        if (profileError && profileError.code === 'PGRST116') {
+          // Profile doesn't exist, this shouldn't happen for existing users
+          throw new Error('User profile not found. Please contact support.')
+        } else if (profileError) {
+          throw new Error('Failed to fetch user profile')
+        }
+
+        toast.success('Successfully signed in!')
+      }
     } catch (error) {
       console.error('Login failed:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Login failed. Please try again.'
+      toast.error(errorMessage)
       throw error
     } finally {
       setIsLoading(false)
@@ -86,21 +168,38 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const signup = async (email: string, password: string, name: string, hotelName: string) => {
     setIsLoading(true)
     try {
-      // Mock signup - replace with real Supabase auth later
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      const userData: User = {
-        id: '1',
+      const { data, error } = await supabase.auth.signUp({
         email,
-        name,
-        hotelName,
-        provider: 'email'
+        password,
+      })
+
+      if (error) {
+        throw new Error(error.message)
       }
-      
-      setUser(userData)
-      localStorage.setItem('verity-user', JSON.stringify(userData))
+
+      if (data.user) {
+        // Create user profile
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert({
+            id: data.user.id,
+            name,
+            hotel_name: hotelName,
+          })
+
+        if (profileError) {
+          throw new Error('Failed to create user profile')
+        }
+
+        toast.success('Account created successfully! Please check your email to confirm your account.')
+        
+        // Don't redirect immediately - user needs to confirm email first
+        // The user will be redirected after clicking the confirmation link
+      }
     } catch (error) {
       console.error('Signup failed:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Signup failed. Please try again.'
+      toast.error(errorMessage)
       throw error
     } finally {
       setIsLoading(false)
@@ -109,11 +208,54 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const logout = async () => {
     try {
-      // Mock logout - replace with real Supabase auth later
+      const { error } = await supabase.auth.signOut()
+      
+      if (error) {
+        throw new Error(error.message)
+      }
+
       setUser(null)
-      localStorage.removeItem('verity-user')
+      toast.success('Successfully signed out!')
     } catch (error) {
       console.error('Logout failed:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Logout failed. Please try again.'
+      toast.error(errorMessage)
+      throw error
+    }
+  }
+
+  const forgotPassword = async (email: string) => {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${process.env.NEXT_PUBLIC_BASE_URL}/auth/reset`
+      })
+
+      if (error) {
+        throw new Error(error.message)
+      }
+
+      toast.success('Password reset email sent! Check your inbox.')
+    } catch (error) {
+      console.error('Forgot password failed:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Failed to send reset email. Please try again.'
+      toast.error(errorMessage)
+      throw error
+    }
+  }
+
+  const resetPassword = async (password: string) => {
+    try {
+      const { error } = await supabase.auth.updateUser({ password })
+
+      if (error) {
+        throw new Error(error.message)
+      }
+
+      toast.success('Password updated successfully!')
+    } catch (error) {
+      console.error('Reset password failed:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update password. Please try again.'
+      toast.error(errorMessage)
       throw error
     }
   }
@@ -124,7 +266,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isLoading,
     login,
     signup,
-    logout
+    logout,
+    forgotPassword,
+    resetPassword
   }
 
   return (

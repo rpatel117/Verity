@@ -33,14 +33,30 @@ export class TypedError extends Error {
  */
 export async function sendAttestation(data: CheckInFormData): Promise<SendAttestationResponse> {
   try {
-    // Mock implementation - replace with real API call later
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    const { supabase } = await import('@/lib/supabaseClient')
     
-    return {
-      attestationId: `att_${Date.now()}`,
-      guestId: `guest_${Date.now()}`,
-      smsSid: `sms_${Date.now()}`
+    const { data: result, error } = await supabase.functions.invoke('send_attestation_sms_fixed', {
+      body: {
+        guest: {
+          fullName: data.fullName,
+          phoneE164: data.phoneE164,
+          dlNumber: data.dlNumber,
+          dlState: data.dlState,
+        },
+        stay: {
+          ccLast4: data.ccLast4,
+          checkInDate: data.checkInDate.toISOString().split('T')[0],
+          checkOutDate: data.checkOutDate.toISOString().split('T')[0],
+        },
+        policyText: data.policyText,
+      }
+    })
+
+    if (error) {
+      throw new TypedError(error.message, error.name, error.status)
     }
+
+    return result
   } catch (error) {
     if (error instanceof TypedError) throw error;
     throw new TypedError("Network error occurred", "NETWORK_ERROR");
@@ -58,37 +74,59 @@ export async function listAttestations(params: {
   cursor?: string;
 }): Promise<PaginatedResponse<AttestationRow>> {
   try {
-    // Mock implementation - replace with real API call later
-    await new Promise(resolve => setTimeout(resolve, 500))
+    const { supabase } = await import('@/lib/supabaseClient')
     
-    const mockData: AttestationRow[] = [
-      {
-        id: "att_1",
-        guest: { fullName: "John Doe", phoneE164: "+1234567890" },
-        ccLast4: "1234",
-        checkInDate: "2024-01-15",
-        checkOutDate: "2024-01-17",
-        status: "verified",
-        sentAt: "2024-01-15T10:00:00Z",
-        verifiedAt: "2024-01-15T10:30:00Z",
-        eventsCount: 3
+    // Get current user's hotel_id
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      throw new TypedError("Not authenticated", "UNAUTHENTICATED", 401)
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('hotel_id')
+      .eq('id', user.id)
+      .single()
+
+    if (!profile?.hotel_id) {
+      throw new TypedError("Hotel not found", "NOT_FOUND", 404)
+    }
+
+    // Call the RPC function with parameters in the correct order
+    const { data, error } = await supabase.rpc('list_attestations', {
+      hotel_id_param: profile.hotel_id,
+      query_param: params.query || null,
+      from_date_param: params.from || null,
+      to_date_param: params.to || null,
+      status_param: params.status || null,
+      page_size_param: 50,
+      cursor_param: params.cursor || null
+    })
+
+    if (error) {
+      throw new TypedError(error.message, "RPC_ERROR")
+    }
+
+    // Transform the data to match AttestationRow interface
+    const transformedData: AttestationRow[] = data.map((row: any) => ({
+      id: row.id,
+      guest: {
+        fullName: row.guest_name,
+        phoneE164: row.guest_phone
       },
-      {
-        id: "att_2",
-        guest: { fullName: "Jane Smith", phoneE164: "+1987654321" },
-        ccLast4: "5678",
-        checkInDate: "2024-01-16",
-        checkOutDate: "2024-01-18",
-        status: "sent",
-        sentAt: "2024-01-16T09:00:00Z",
-        eventsCount: 1
-      }
-    ]
-    
+      ccLast4: row.cc_last4,
+      checkInDate: row.check_in_date,
+      checkOutDate: row.check_out_date,
+      status: row.status,
+      sentAt: row.sent_at,
+      verifiedAt: row.verified_at,
+      eventsCount: row.events_count
+    }))
+
     return {
-      data: mockData,
-      nextCursor: undefined,
-      total: mockData.length
+      data: transformedData,
+      nextCursor: data.length === 50 ? data[data.length - 1]?.sent_at : undefined,
+      total: transformedData.length
     }
   } catch (error) {
     if (error instanceof TypedError) throw error;
@@ -101,26 +139,27 @@ export async function listAttestations(params: {
  */
 export async function listAttestationEvents(attestationId: string): Promise<AttestationEvent[]> {
   try {
-    // Mock implementation - replace with real API call later
-    await new Promise(resolve => setTimeout(resolve, 300))
+    const { supabase } = await import('@/lib/supabaseClient')
     
-    return [
-      {
-        id: "evt_1",
-        eventType: "page.open",
-        createdAt: "2024-01-15T10:00:00Z",
-        ip: "192.168.1.1",
-        userAgent: "Mozilla/5.0..."
-      },
-      {
-        id: "evt_2",
-        eventType: "geo.capture",
-        createdAt: "2024-01-15T10:01:00Z",
-        latitude: 40.7128,
-        longitude: -74.0060,
-        accuracy: 10
-      }
-    ]
+    const { data, error } = await supabase
+      .from('attestation_events')
+      .select('*')
+      .eq('attestation_id', attestationId)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      throw new TypedError(error.message, "QUERY_ERROR")
+    }
+
+    return data.map((event: any) => ({
+      id: event.id,
+      eventType: event.event_type,
+      createdAt: event.created_at,
+      ip: event.ip,
+      latitude: event.latitude,
+      longitude: event.longitude,
+      accuracy: event.accuracy
+    }))
   } catch (error) {
     if (error instanceof TypedError) throw error;
     throw new TypedError("Network error occurred", "NETWORK_ERROR");
@@ -132,13 +171,19 @@ export async function listAttestationEvents(attestationId: string): Promise<Atte
  */
 export async function generateReport(data: ReportFormData): Promise<GenerateReportResponse> {
   try {
-    // Mock implementation - replace with real API call later
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    const { supabase } = await import('@/lib/supabaseClient')
     
-    return {
-      reportId: `report_${Date.now()}`,
-      downloadUrl: "https://example.com/report.pdf"
+    const { data: result, error } = await supabase.functions.invoke('generate_report_pdf', {
+      body: {
+        attestationIds: data.attestationIds
+      }
+    })
+
+    if (error) {
+      throw new TypedError(error.message, error.name, error.status)
     }
+
+    return result
   } catch (error) {
     if (error instanceof TypedError) throw error;
     throw new TypedError("Network error occurred", "NETWORK_ERROR");
@@ -150,18 +195,17 @@ export async function generateReport(data: ReportFormData): Promise<GenerateRepo
  */
 export async function initGuest(token: string): Promise<GuestInitResponse> {
   try {
-    // Mock implementation - replace with real API call later
-    await new Promise(resolve => setTimeout(resolve, 500))
+    const { supabase } = await import('@/lib/supabaseClient')
     
-    if (token === 'invalid') {
-      throw new TypedError("Invalid or expired token", "INVALID_TOKEN");
+    const { data: result, error } = await supabase.functions.invoke('guest_init', {
+      body: { token }
+    })
+
+    if (error) {
+      throw new TypedError(error.message, error.name, error.status)
     }
-    
-    return {
-      valid: true,
-      policyText: "I confirm I am the authorized cardholder or their agent, consent to applicable charges for the stated dates, and agree that Verity may record IP & geolocation for fraud-prevention.",
-      twoFACodeMasked: "12****"
-    }
+
+    return result
   } catch (error) {
     if (error instanceof TypedError) throw error;
     throw new TypedError("Network error occurred", "NETWORK_ERROR");
@@ -181,10 +225,17 @@ export async function sendGuestEvent(data: {
   accuracy?: number;
 }): Promise<GuestEventResponse> {
   try {
-    // Mock implementation - replace with real API call later
-    await new Promise(resolve => setTimeout(resolve, 200))
+    const { supabase } = await import('@/lib/supabaseClient')
     
-    return { ok: true }
+    const { data: result, error } = await supabase.functions.invoke('guest_event', {
+      body: data
+    })
+
+    if (error) {
+      throw new TypedError(error.message, error.name, error.status)
+    }
+
+    return result
   } catch (error) {
     if (error instanceof TypedError) throw error;
     throw new TypedError("Network error occurred", "NETWORK_ERROR");
@@ -199,13 +250,42 @@ export async function confirmGuest(data: {
   accepted: boolean;
 }): Promise<GuestConfirmResponse> {
   try {
-    // Mock implementation - replace with real API call later
-    await new Promise(resolve => setTimeout(resolve, 500))
+    const { supabase } = await import('@/lib/supabaseClient')
     
-    return {
-      ok: true,
-      code: "123456"
+    const { data: result, error } = await supabase.functions.invoke('guest_confirm', {
+      body: data
+    })
+
+    if (error) {
+      throw new TypedError(error.message, error.name, error.status)
     }
+
+    return result
+  } catch (error) {
+    if (error instanceof TypedError) throw error;
+    throw new TypedError("Network error occurred", "NETWORK_ERROR");
+  }
+}
+
+/**
+ * Verify attestation code entered by clerk
+ */
+export async function verifyAttestationCode(data: {
+  attestationId: string;
+  code: string;
+}): Promise<{ ok: boolean; verifiedAt?: string; reason?: string }> {
+  try {
+    const { supabase } = await import('@/lib/supabaseClient')
+    
+    const { data: result, error } = await supabase.functions.invoke('verify_attestation_code', {
+      body: data
+    })
+
+    if (error) {
+      throw new TypedError(error.message, error.name, error.status)
+    }
+
+    return result
   } catch (error) {
     if (error instanceof TypedError) throw error;
     throw new TypedError("Network error occurred", "NETWORK_ERROR");

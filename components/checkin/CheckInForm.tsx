@@ -21,7 +21,11 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2, Send, Calendar, User, Phone, CreditCard, FileText, CheckCircle } from 'lucide-react'
 import { POLICY_TEXT } from '@/lib/constants'
 
-export function CheckInForm() {
+interface CheckInFormProps {
+  onSmsSent?: () => void
+}
+
+export function CheckInForm({ onSmsSent }: CheckInFormProps) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
@@ -59,6 +63,9 @@ export function CheckInForm() {
 
       setIsSuccess(true)
       form.reset()
+      
+      // Show code verification section
+      onSmsSent?.()
 
       // Reset success state after 3 seconds
       setTimeout(() => setIsSuccess(false), 3000)

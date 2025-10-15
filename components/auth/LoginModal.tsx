@@ -54,7 +54,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, prevent
       if (isSignup) {
         await signup(data.email, data.password, data.name, data.hotelName)
       } else {
-        await login(data.email, data.password, data.hotelName)
+        await login(data.email, data.password)
       }
       onClose()
     } catch (error) {
@@ -165,26 +165,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, prevent
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="hotelName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Hotel Name</FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <Building className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          placeholder="Enter your hotel name"
-                          className="pl-10"
-                          {...field}
-                        />
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
 
             {error && (
               <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">
@@ -202,6 +182,21 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, prevent
                 ) : null}
                 {isSignup ? 'Create Account' : 'Sign In'}
               </Button>
+
+              {!isSignup && (
+                <div className="text-center">
+                  <Button
+                    variant="link"
+                    className="text-sm text-muted-foreground hover:text-primary p-0 h-auto"
+                    onClick={() => {
+                      // TODO: Implement forgot password functionality
+                      console.log('Forgot password clicked')
+                    }}
+                  >
+                    Forgot your password?
+                  </Button>
+                </div>
+              )}
             </form>
           </Form>
 

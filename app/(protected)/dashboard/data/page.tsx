@@ -6,49 +6,71 @@
 
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { DataTable } from '@/components/data/DataTable'
 import { Filters } from '@/components/data/Filters'
+import { listAttestations, type AttestationRow } from '@/lib/api'
+import { toast } from 'sonner'
 // import { motion } from 'framer-motion'
 // import { fadeInUp, staggerChildren, staggerItem } from '@/lib/motion'
 
-// Mock data for UI viewing
-const mockData = [
-  {
-    id: "att_1",
-    guest: { fullName: "John Doe", phoneE164: "+1234567890" },
-    ccLast4: "1234",
-    checkInDate: "2024-01-15",
-    checkOutDate: "2024-01-17",
-    status: "verified" as const,
-    sentAt: "2024-01-15T10:00:00Z",
-    verifiedAt: "2024-01-15T10:30:00Z",
-    eventsCount: 3
-  },
-  {
-    id: "att_2",
-    guest: { fullName: "Jane Smith", phoneE164: "+1987654321" },
-    ccLast4: "5678",
-    checkInDate: "2024-01-16",
-    checkOutDate: "2024-01-18",
-    status: "sent" as const,
-    sentAt: "2024-01-16T09:00:00Z",
-    eventsCount: 1
-  },
-  {
-    id: "att_3",
-    guest: { fullName: "Bob Johnson", phoneE164: "+1555123456" },
-    ccLast4: "9012",
-    checkInDate: "2024-01-14",
-    checkOutDate: "2024-01-16",
-    status: "expired" as const,
-    sentAt: "2024-01-14T08:00:00Z",
-    eventsCount: 2
-  }
-]
-
 export default function DataPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [data, setData] = useState<AttestationRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [filters, setFilters] = useState({
+    query: '',
+    from: '',
+    to: '',
+    status: ''
+  })
+  const [cursor, setCursor] = useState<string | undefined>()
+  const [hasMore, setHasMore] = useState(false)
+
+  const loadData = async (reset = false) => {
+    try {
+      setLoading(true)
+      
+      const response = await listAttestations({
+        query: filters.query || undefined,
+        from: filters.from || undefined,
+        to: filters.to || undefined,
+        status: filters.status || undefined,
+        cursor: reset ? undefined : cursor
+      })
+
+      if (reset) {
+        setData(response.data)
+      } else {
+        setData(prev => [...prev, ...response.data])
+      }
+      
+      setHasMore(!!response.nextCursor)
+      setCursor(response.nextCursor)
+    } catch (error) {
+      console.error('Failed to load attestations:', error)
+      toast.error('Failed to load attestations')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Load data on mount and when filters change
+  useEffect(() => {
+    loadData(true)
+  }, [filters])
+
+  const handleFilterChange = (newFilters: typeof filters) => {
+    setFilters(newFilters)
+    setCursor(undefined)
+    setHasMore(false)
+  }
+
+  const handleLoadMore = () => {
+    if (hasMore && !loading) {
+      loadData(false)
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -67,7 +89,10 @@ export default function DataPage() {
       {/* Filters */}
       <div>
         <div className="bg-white border border-gray-200 rounded-md p-4">
-          <Filters />
+          <Filters 
+            filters={filters}
+            onFiltersChange={handleFilterChange}
+          />
         </div>
       </div>
 
@@ -75,9 +100,11 @@ export default function DataPage() {
       <div>
         <div className="bg-white border border-gray-200 rounded-md overflow-hidden">
           <DataTable
-            data={mockData}
-            loading={false}
+            data={data}
+            loading={loading}
             onSelectionChange={setSelectedIds}
+            onLoadMore={hasMore ? handleLoadMore : undefined}
+            hasMore={hasMore}
           />
         </div>
       </div>

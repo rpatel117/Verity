@@ -14,44 +14,37 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Search, Filter, X } from 'lucide-react'
 
-interface FiltersProps {
-  onFiltersChange?: (filters: FilterState) => void
-}
-
 interface FilterState {
   query: string
   status: string
-  fromDate: string
-  toDate: string
+  from: string
+  to: string
 }
 
-export function Filters({ onFiltersChange }: FiltersProps) {
-  const [filters, setFilters] = useState<FilterState>({
-    query: '',
-    status: 'all',
-    fromDate: '',
-    toDate: '',
-  })
+interface FiltersProps {
+  filters: FilterState
+  onFiltersChange: (filters: FilterState) => void
+}
+
+export function Filters({ filters, onFiltersChange }: FiltersProps) {
 
   const handleFilterChange = (key: keyof FilterState, value: string) => {
-    const newFilters = { ...filters, [key]: value }
-    setFilters(newFilters)
-    onFiltersChange?.(newFilters)
+    const newFilters = { ...filters, [key]: value === 'all' ? '' : value }
+    onFiltersChange(newFilters)
   }
 
   const clearFilters = () => {
     const clearedFilters = {
       query: '',
-      status: 'all',
-      fromDate: '',
-      toDate: '',
+      status: '',
+      from: '',
+      to: '',
     }
-    setFilters(clearedFilters)
-    onFiltersChange?.(clearedFilters)
+    onFiltersChange(clearedFilters)
   }
 
   const hasActiveFilters = Object.entries(filters).some(([key, value]) => 
-    key === 'status' ? value !== 'all' : value !== ''
+    value !== '' && value !== 'all'
   )
 
   return (
@@ -107,8 +100,8 @@ export function Filters({ onFiltersChange }: FiltersProps) {
             <Input
               id="fromDate"
               type="date"
-              value={filters.fromDate}
-              onChange={(e) => handleFilterChange('fromDate', e.target.value)}
+              value={filters.from}
+              onChange={(e) => handleFilterChange('from', e.target.value)}
             />
           </div>
 
@@ -118,8 +111,8 @@ export function Filters({ onFiltersChange }: FiltersProps) {
             <Input
               id="toDate"
               type="date"
-              value={filters.toDate}
-              onChange={(e) => handleFilterChange('toDate', e.target.value)}
+              value={filters.to}
+              onChange={(e) => handleFilterChange('to', e.target.value)}
             />
           </div>
         </div>

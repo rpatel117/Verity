@@ -111,5 +111,5 @@ module.exports = {
       },
     },
   },
-  plugins: [require("tailwindcss-animate"), require("nativewind/preset")],
+  plugins: [require("tailwindcss-animate")],
 }

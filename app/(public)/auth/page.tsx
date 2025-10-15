@@ -21,18 +21,19 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { motion } from 'framer-motion'
 import { fadeInUp, scaleIn, checkmark, spin } from '@/lib/motion'
 import { Loader2, Mail, Lock, User, Building, Shield } from 'lucide-react'
+import Link from 'next/link'
 
 export default function AuthPage() {
   const { login, signup, isLoading } = useAuth()
   const router = useRouter()
   const [error, setError] = useState('')
+  const [showEmailConfirmation, setShowEmailConfirmation] = useState(false)
 
   const loginForm = useForm({
     resolver: zodResolver(LoginSchema),
     defaultValues: {
       email: '',
       password: '',
-      hotelName: '',
     },
   })
 
@@ -49,7 +50,7 @@ export default function AuthPage() {
   const handleLogin = async (data: any) => {
     setError('')
     try {
-      await login(data.email, data.password, data.hotelName)
+      await login(data.email, data.password)
       router.push('/dashboard')
     } catch (error) {
       console.error('Login error:', error)
@@ -61,11 +62,65 @@ export default function AuthPage() {
     setError('')
     try {
       await signup(data.email, data.password, data.name, data.hotelName)
-      router.push('/dashboard')
+      setShowEmailConfirmation(true)
     } catch (error) {
       console.error('Signup error:', error)
       setError('Signup failed. Please try again.')
     }
+  }
+
+  if (showEmailConfirmation) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
+        <motion.div 
+          className="max-w-md w-full space-y-8"
+          variants={fadeInUp}
+          initial="initial"
+          animate="animate"
+        >
+          <motion.div 
+            className="text-center"
+            variants={fadeInUp}
+          >
+            <div className="flex items-center justify-center space-x-2 mb-4">
+              <Shield className="h-8 w-8 text-primary" />
+              <h1 className="text-3xl font-heading font-bold gradient-text">Verity</h1>
+            </div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Secure attestation and verification system
+            </p>
+          </motion.div>
+
+          <motion.div
+            variants={scaleIn}
+            initial="initial"
+            animate="animate"
+          >
+            <Card className="glass-panel">
+              <CardHeader className="text-center">
+                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
+                  <Mail className="h-6 w-6 text-green-600" />
+                </div>
+                <CardTitle>Check Your Email</CardTitle>
+                <CardDescription>
+                  We've sent a confirmation link to your email address. Please click the link to activate your account.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="text-center">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowEmailConfirmation(false)}
+                  >
+                    Back to Sign Up
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </motion.div>
+      </div>
+    )
   }
 
   return (
@@ -155,26 +210,6 @@ export default function AuthPage() {
                       )}
                     />
 
-                    <FormField
-                      control={loginForm.control}
-                      name="hotelName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Hotel Name</FormLabel>
-                          <FormControl>
-                            <div className="relative">
-                              <Building className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                              <Input
-                                placeholder="Enter your hotel name"
-                                className="pl-10"
-                                {...field}
-                              />
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
 
                     {error && (
                       <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">
@@ -197,6 +232,18 @@ export default function AuthPage() {
                       ) : null}
                       Sign In
                     </Button>
+
+                    <div className="text-center">
+                      <Button
+                        variant="link"
+                        className="text-sm text-muted-foreground hover:text-primary p-0 h-auto"
+                        asChild
+                      >
+                        <Link href="/auth/forgot">
+                          Forgot your password?
+                        </Link>
+                      </Button>
+                    </div>
                   </form>
                 </Form>
               </CardContent>
