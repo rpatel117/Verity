@@ -39,10 +39,7 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  
-  // Debug logging
-  console.log('AuthContext render - isLoading:', isLoading, 'user:', user?.email)
+  const [isLoading, setIsLoading] = useState(false)
 
   // Check for existing session on mount
   useEffect(() => {
@@ -52,13 +49,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         if (error) {
           console.error('Auth check failed:', error)
+          setUser(null)
           setIsLoading(false)
           return
         }
 
         if (session?.user) {
-          console.log('Found existing session for user:', session.user.id)
-          
           // Get user profile from database
           const { data: profile, error: profileError } = await supabase
             .from('profiles')
@@ -67,7 +63,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             .single()
 
           if (profileError) {
-            console.error('Profile fetch failed:', profileError)
+            setUser(null)
             setIsLoading(false)
             return
           }
@@ -82,30 +78,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
           setUser(userData)
         } else {
-          console.log('No existing session found')
+          setUser(null)
         }
       } catch (error) {
         console.error('Auth check failed:', error)
+        setUser(null)
       } finally {
         setIsLoading(false)
       }
     }
 
     checkAuth()
-    
-    // Safety timeout to ensure loading state is cleared
-    const timeout = setTimeout(() => {
-      console.log('Auth timeout - setting isLoading to false')
-      setIsLoading(false)
-    }, 5000)
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth state change:', event, session?.user?.id)
-        
         if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
-          console.log('Handling auth event:', event)
           // Get user profile
           const { data: profile } = await supabase
             .from('profiles')
@@ -122,11 +110,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               provider: 'email'
             }
             setUser(userData)
-            console.log('User set from auth event:', event)
           }
           setIsLoading(false)
         } else if (event === 'SIGNED_OUT') {
-          console.log('User signed out')
           setUser(null)
           setIsLoading(false)
         }
@@ -135,27 +121,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     )
 
     return () => {
-      clearTimeout(timeout)
       subscription.unsubscribe()
     }
   }, [])
 
   const login = async (email: string, password: string) => {
-    console.log('Login started - setting isLoading to true')
     setIsLoading(true)
     try {
-      console.log('Calling supabase.auth.signInWithPassword')
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
       if (error) {
-        console.error('Login error:', error)
         throw new Error(error.message)
       }
-
-      console.log('Login successful, user:', data.user?.id)
       
       if (data.user) {
         // Get or create user profile
@@ -169,18 +149,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           // Profile doesn't exist, this shouldn't happen for existing users
           throw new Error('User profile not found. Please contact support.')
         } else if (profileError) {
-          console.error('Profile error:', profileError)
           throw new Error('Failed to fetch user profile')
         }
 
-        console.log('Profile found:', profile.name)
         toast.success('Successfully signed in!')
       }
     } catch (error) {
-      console.error('Login failed:', error)
       const errorMessage = error instanceof Error ? error.message : 'Login failed. Please try again.'
       toast.error(errorMessage)
-      console.log('Login error - setting isLoading to false')
       setIsLoading(false) // Set loading to false on error
       throw error
     }
