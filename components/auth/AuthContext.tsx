@@ -40,6 +40,9 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  
+  // Debug logging
+  console.log('AuthContext render - isLoading:', isLoading, 'user:', user?.email)
 
   // Check for existing session on mount
   useEffect(() => {
@@ -89,6 +92,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     checkAuth()
+    
+    // Safety timeout to ensure loading state is cleared
+    const timeout = setTimeout(() => {
+      console.log('Auth timeout - setting isLoading to false')
+      setIsLoading(false)
+    }, 5000)
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -125,13 +134,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     )
 
-    return () => subscription.unsubscribe()
+    return () => {
+      clearTimeout(timeout)
+      subscription.unsubscribe()
+    }
   }, [])
 
   const login = async (email: string, password: string) => {
-    console.log('Login started')
+    console.log('Login started - setting isLoading to true')
     setIsLoading(true)
     try {
+      console.log('Calling supabase.auth.signInWithPassword')
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -167,6 +180,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('Login failed:', error)
       const errorMessage = error instanceof Error ? error.message : 'Login failed. Please try again.'
       toast.error(errorMessage)
+      console.log('Login error - setting isLoading to false')
       setIsLoading(false) // Set loading to false on error
       throw error
     }
