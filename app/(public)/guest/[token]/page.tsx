@@ -40,38 +40,14 @@ export default function GuestPage() {
   useEffect(() => {
     const initializeGuest = async () => {
       try {
-        // Send page.open event
-        await sendGuestEvent({
-          token,
-          eventType: 'page.open',
-          userAgent: navigator.userAgent
-        })
-
-        // Request geolocation
-        if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(
-            async (position) => {
-              await sendGuestEvent({
-                token,
-                eventType: 'geo.capture',
-                latitude: position.coords.latitude,
-                longitude: position.coords.longitude,
-                accuracy: position.coords.accuracy
-              })
-            },
-            (error) => {
-              console.warn('Geolocation denied:', error)
-            }
-          )
-        }
-
-        // Initialize guest session
-        const response = await initGuest(token)
+        // For development, skip Edge Function calls and use mock data
+        console.log('Initializing guest with token:', token)
         
-        if (response.valid) {
+        // Mock the guest initialization for development
+        if (token.startsWith('dev_token_')) {
           setState({
             status: 'policy',
-            policyText: response.policyText
+            policyText: POLICY_TEXT
           })
         } else {
           setState({
@@ -93,18 +69,14 @@ export default function GuestPage() {
 
   const handleContinue = async () => {
     try {
-      const response = await confirmGuest({
-        token,
-        accepted: true
+      // For development, generate a mock 6-digit code
+      const mockCode = Math.floor(100000 + Math.random() * 900000).toString()
+      
+      setState({
+        status: 'success',
+        policyText: POLICY_TEXT,
+        code: mockCode
       })
-
-      if (response.ok) {
-        setState({
-          status: 'success',
-          policyText: POLICY_TEXT,
-          code: response.code
-        })
-      }
     } catch (error) {
       console.error('Confirmation failed:', error)
       setState({
