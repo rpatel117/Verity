@@ -115,11 +115,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setUser(userData)
             console.log('User set from auth event:', event)
           }
+          setIsLoading(false)
         } else if (event === 'SIGNED_OUT') {
           console.log('User signed out')
           setUser(null)
+          setIsLoading(false)
         }
-        setIsLoading(false)
+        // Don't set isLoading(false) for other events like INITIAL_SESSION
       }
     )
 
@@ -127,6 +129,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [])
 
   const login = async (email: string, password: string) => {
+    console.log('Login started')
     setIsLoading(true)
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -135,9 +138,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       })
 
       if (error) {
+        console.error('Login error:', error)
         throw new Error(error.message)
       }
 
+      console.log('Login successful, user:', data.user?.id)
+      
       if (data.user) {
         // Get or create user profile
         const { data: profile, error: profileError } = await supabase
@@ -150,19 +156,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           // Profile doesn't exist, this shouldn't happen for existing users
           throw new Error('User profile not found. Please contact support.')
         } else if (profileError) {
+          console.error('Profile error:', profileError)
           throw new Error('Failed to fetch user profile')
         }
 
+        console.log('Profile found:', profile.name)
         toast.success('Successfully signed in!')
       }
     } catch (error) {
       console.error('Login failed:', error)
       const errorMessage = error instanceof Error ? error.message : 'Login failed. Please try again.'
       toast.error(errorMessage)
+      setIsLoading(false) // Set loading to false on error
       throw error
-    } finally {
-      setIsLoading(false)
     }
+    // Note: Don't set isLoading(false) here - let the auth state change listener handle it
   }
 
   const signup = async (email: string, password: string, name: string, hotelName: string) => {
