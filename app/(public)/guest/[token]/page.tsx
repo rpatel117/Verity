@@ -45,7 +45,7 @@ export default function GuestPage() {
         console.log('Initializing guest with token:', token)
         console.log('Token length:', token?.length)
         console.log('Token type:', typeof token)
-        
+
         // Check if token looks like a JWT (has dots)
         if (!token || typeof token !== 'string') {
           setState({
@@ -55,6 +55,38 @@ export default function GuestPage() {
           })
           return
         }
+
+        // Capture IP address and geolocation
+        const captureLocation = async () => {
+          try {
+            // Get IP address
+            const ipResponse = await fetch('https://api.ipify.org?format=json')
+            const ipData = await ipResponse.json()
+            const ip = ipData.ip
+
+            // Get geolocation
+            let latitude, longitude, accuracy
+            if (navigator.geolocation) {
+              const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject, {
+                  enableHighAccuracy: true,
+                  timeout: 10000,
+                  maximumAge: 300000 // 5 minutes
+                })
+              })
+              latitude = position.coords.latitude
+              longitude = position.coords.longitude
+              accuracy = position.coords.accuracy
+            }
+
+            return { ip, latitude, longitude, accuracy }
+          } catch (error) {
+            console.log('Location capture failed:', error)
+            return { ip: null, latitude: null, longitude: null, accuracy: null }
+          }
+        }
+
+        const locationData = await captureLocation()
 
         // Call the guest_init edge function to validate the token
         const { supabase } = await import('@/lib/supabaseClient')
@@ -71,6 +103,23 @@ export default function GuestPage() {
             error: 'Invalid or expired token'
           })
           return
+        }
+
+        // Log page open event with location data
+        try {
+          await supabase.functions.invoke('guest_event', {
+            body: {
+              token,
+              eventType: 'page.open',
+              ip: locationData.ip,
+              userAgent: navigator.userAgent,
+              latitude: locationData.latitude,
+              longitude: locationData.longitude,
+              accuracy: locationData.accuracy
+            }
+          })
+        } catch (logError) {
+          console.log('Failed to log page open event:', logError)
         }
 
         setState({
@@ -95,7 +144,7 @@ export default function GuestPage() {
       // Call the guest_confirm edge function
       const { supabase } = await import('@/lib/supabaseClient')
       const { data, error } = await supabase.functions.invoke('guest_confirm', {
-        body: { 
+        body: {
           token,
           accepted: true
         }
@@ -108,6 +157,20 @@ export default function GuestPage() {
           error: 'Failed to confirm attestation'
         })
         return
+      }
+
+      // Log policy acceptance event
+      try {
+        await supabase.functions.invoke('guest_event', {
+          body: {
+            token,
+            eventType: 'policy.accept',
+            ip: null, // We already captured this on page load
+            userAgent: navigator.userAgent
+          }
+        })
+      } catch (logError) {
+        console.log('Failed to log policy acceptance event:', logError)
       }
 
       setState({

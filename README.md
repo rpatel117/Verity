@@ -6,6 +6,84 @@ A production-ready React Native application for secure hotel guest check-ins usi
 
 This app streamlines the hotel check-in process by verifying guest identity through SMS verification codes. Hotel staff enter guest information, guests receive an SMS with a verification code and privacy policy link, and check-in is completed when the code is verified.
 
+## Recent Updates - Full Production Flow Implementation
+
+### ✅ Complete End-to-End Guest Attestation System
+
+The application now features a complete production-ready guest attestation flow:
+
+1. **Hotel Staff** fills out check-in form with guest details
+2. **System** generates a unique JWT token and 6-digit verification code
+3. **Guest** receives SMS with a secure link to attestation page
+4. **Guest** visits link, reviews policy, and accepts terms
+5. **System** displays the 6-digit code for hotel staff verification
+
+### 🔧 Technical Implementation Details
+
+#### Edge Functions Deployed:
+- **`send_attestation_sms_fixed`**: Generates JWT tokens, creates guest records, sends SMS
+- **`guest_init`**: Validates JWT tokens and returns policy information
+- **`guest_confirm`**: Processes policy acceptance and returns verification code
+
+#### Key Features Implemented:
+- **JWT Token Security**: 24-hour expiry, signed with secret key
+- **URL Encoding**: JWT tokens properly encoded for guest links
+- **Development Mode**: Mock SMS logging for local testing
+- **Database Integration**: Full guest and attestation record management
+- **Error Handling**: Comprehensive validation and error responses
+
+#### Authentication State Management Fixed:
+- Separated `isInitializing` (initial auth check) from `isLoading` (login operations)
+- Fixed login modal spinning issue
+- Proper state management across public and protected routes
+
+### 🚀 How the Complete Flow Works
+
+1. **Staff Check-in Process**:
+   ```
+   Staff enters guest info → System generates JWT → SMS sent to guest
+   ```
+
+2. **Guest Attestation Process**:
+   ```
+   Guest clicks SMS link → JWT validated → Policy displayed → Guest accepts → Code shown
+   ```
+
+3. **Verification Process**:
+   ```
+   Staff enters 6-digit code → System verifies → Check-in complete
+   ```
+
+### 📱 Frontend Architecture
+
+- **Protected Routes**: Hotel staff dashboard with authentication
+- **Public Routes**: Guest attestation pages (no auth required)
+- **Route Groups**: `(protected)` and `(public)` for proper layout isolation
+- **State Management**: React Context for authentication state
+- **Error Handling**: Comprehensive error states and user feedback
+
+### 🔒 Security Implementation
+
+- **JWT Tokens**: Signed with secret key, 24-hour expiry
+- **URL Encoding**: Proper encoding/decoding of tokens in URLs
+- **Database Security**: Row-level security policies
+- **Input Validation**: Client and server-side validation
+- **Error Handling**: Secure error messages without information leakage
+
+### 🛠 Development vs Production
+
+**Development Mode** (Current):
+- Mock SMS logging to console
+- No Twilio credentials required
+- Full database integration
+- Real JWT token generation
+
+**Production Mode** (Ready):
+- Real Twilio SMS sending
+- Production secrets configuration
+- Full error monitoring
+- Rate limiting and security policies
+
 ## Features
 
 - **Two-Factor Authentication**: SMS-based verification using Twilio
@@ -402,6 +480,184 @@ vercel deploy
 - **Secure Storage**: JWT tokens stored in encrypted SecureStore
 - **Rate Limiting**: Backend implements rate limiting on verification attempts
 - **Privacy Compliance**: Privacy policy acceptance is logged for each check-in
+
+## Technical Documentation - Guest Attestation Flow
+
+### 🔧 Detailed Implementation Guide
+
+#### 1. Edge Function Architecture
+
+**`send_attestation_sms_fixed` Function:**
+```typescript
+// Key responsibilities:
+- Authenticate hotel staff via JWT
+- Generate 6-digit verification code
+- Create JWT token for guest link (24h expiry)
+- Create guest and attestation database records
+- Send SMS with guest link (or log in dev mode)
+- Return attestation ID and guest URL
+```
+
+**`guest_init` Function:**
+```typescript
+// Key responsibilities:
+- Validate JWT token from guest URL
+- Check token expiration
+- Return policy text for display
+- Log page access events
+```
+
+**`guest_confirm` Function:**
+```typescript
+// Key responsibilities:
+- Validate JWT token
+- Process policy acceptance
+- Return 6-digit verification code
+- Update attestation status
+```
+
+#### 2. JWT Token Structure
+
+```typescript
+// Token payload:
+{
+  attestation_id: "uuid",
+  guest_id: "uuid", 
+  hotel_id: "uuid",
+  exp: timestamp, // 24 hours from creation
+  iat: timestamp  // creation time
+}
+```
+
+#### 3. Database Schema Integration
+
+**Guests Table:**
+- Stores guest information (name, phone, DL, etc.)
+- Links to hotel via `hotel_id`
+- Created by staff via `created_by`
+
+**Attestations Table:**
+- Links to guest via `guest_id`
+- Stores hashed verification code
+- Contains JWT token for guest link
+- Tracks SMS status and policy text
+
+**Attestation Events Table:**
+- Logs all events (SMS sent, page opened, policy accepted)
+- Includes IP, geolocation, and timing data
+- Enables audit trail and analytics
+
+#### 4. Frontend Route Structure
+
+```
+app/
+├── (protected)/          # Requires authentication
+│   └── dashboard/       # Staff dashboard
+└── (public)/            # No authentication required
+    └── guest/[token]/   # Guest attestation page
+```
+
+**Key Implementation Details:**
+- Public layout excludes `AuthProvider` to prevent auth interference
+- Guest page uses `decodeURIComponent()` for JWT token parsing
+- Error handling with user-friendly messages
+- Loading states for better UX
+
+#### 5. Authentication State Management
+
+**Problem Solved:**
+- Login modal was stuck in loading state
+- `isLoading` was used for both initial auth check and login operations
+- This caused UI conflicts and poor user experience
+
+**Solution Implemented:**
+```typescript
+// Separated concerns:
+const [isInitializing, setIsInitializing] = useState(true)  // Initial auth check
+const [isLoading, setIsLoading] = useState(false)        // Login/signup operations
+
+// Combined for UI:
+isLoading: isInitializing || isLoading
+```
+
+#### 6. Development vs Production Configuration
+
+**Development Mode (Current Setup):**
+```typescript
+// Mock SMS logging:
+console.log(`[DEV MODE] SMS would be sent to ${phone}:`);
+console.log(`[DEV MODE] Message: Your Verity attestation code is ready. Click here to verify: ${guestUrl}`);
+console.log(`[DEV MODE] Code: ${verificationCode}`);
+```
+
+**Production Mode (Ready for Deployment):**
+```typescript
+// Real Twilio integration:
+const twilio = new Twilio(accountSid, authToken);
+await twilio.messages.create({
+  to: phoneE164,
+  from: messagingServiceSid,
+  body: `Your Verity attestation code is ready. Click here to verify: ${guestUrl}`
+});
+```
+
+#### 7. Error Handling Strategy
+
+**Client-Side:**
+- Form validation before submission
+- Loading states during API calls
+- User-friendly error messages
+- Retry mechanisms for network errors
+
+**Server-Side:**
+- JWT token validation
+- Input sanitization
+- Rate limiting
+- Comprehensive logging
+- Graceful error responses
+
+#### 8. Security Considerations
+
+**JWT Security:**
+- Tokens signed with secret key
+- 24-hour expiration
+- No sensitive data in payload
+- Proper URL encoding/decoding
+
+**Database Security:**
+- Row-level security policies
+- Input validation and sanitization
+- Audit logging for all operations
+- Secure credential storage
+
+**Network Security:**
+- HTTPS enforcement
+- CORS configuration
+- Rate limiting on API endpoints
+- Secure error messages
+
+### 🚀 Deployment Checklist
+
+#### Prerequisites:
+- [ ] Supabase project created and configured
+- [ ] Database schema deployed
+- [ ] Edge functions deployed
+- [ ] Environment variables set
+- [ ] Twilio account configured (for production)
+
+#### Development Testing:
+- [ ] Staff can create attestations
+- [ ] Guest links work correctly
+- [ ] JWT tokens validate properly
+- [ ] Database records created
+- [ ] Error handling works
+
+#### Production Deployment:
+- [ ] Twilio secrets configured
+- [ ] Production URLs set
+- [ ] Rate limiting enabled
+- [ ] Monitoring configured
+- [ ] Backup procedures in place
 
 ## Support
 

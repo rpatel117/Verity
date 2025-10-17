@@ -36,7 +36,7 @@ export async function sendAttestation(data: CheckInFormData): Promise<SendAttest
   try {
     const { supabase } = await import('@/lib/supabaseClient')
     
-    const { data: result, error } = await supabase.functions.invoke('send_attestation_sms', {
+    const { data: result, error } = await supabase.functions.invoke('send_attestation_sms_fixed', {
       body: {
         guest: {
           fullName: data.fullName,
@@ -276,18 +276,24 @@ export async function verifyAttestationCode(data: {
   code: string;
 }): Promise<{ ok: boolean; verifiedAt?: string; reason?: string }> {
   try {
+    console.log('🌐 API: Calling verify_attestation_code with:', data)
     const { supabase } = await import('@/lib/supabaseClient')
     
     const { data: result, error } = await supabase.functions.invoke('verify_attestation_code', {
       body: data
     })
 
+    console.log('🌐 API: Edge function response:', { result, error })
+
     if (error) {
+      console.error('🌐 API: Edge function error:', error)
       throw new TypedError(error.message, error.name, error.status)
     }
 
+    console.log('🌐 API: Returning result:', result)
     return result
   } catch (error) {
+    console.error('🌐 API: verifyAttestationCode error:', error)
     if (error instanceof TypedError) throw error;
     throw new TypedError("Network error occurred", "NETWORK_ERROR");
   }

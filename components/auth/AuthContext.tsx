@@ -15,7 +15,7 @@ import { toast } from 'sonner'
 interface AuthContextType {
   user: User | null
   isAuthenticated: boolean
-  isLoading: boolean
+  isInitializing: boolean
   login: (email: string, password: string) => Promise<void>
   signup: (email: string, password: string, name: string, hotelName: string) => Promise<void>
   logout: () => Promise<void>
@@ -39,23 +39,23 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null)
-  const [isInitializing, setIsInitializing] = useState(true) // For initial auth check
-  const [isLoading, setIsLoading] = useState(false) // For login/signup operations
+  const [isInitializing, setIsInitializing] = useState(true)
 
   // Check for existing session on mount
   useEffect(() => {
+    let mounted = true
+    let isInitialized = false
+
     const checkAuth = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession()
         
+        if (!mounted || isInitialized) return
+
         if (error) {
           console.error('Auth check failed:', error)
           setUser(null)
-          setIsInitializing(false)
-          return
-        }
-
-        if (session?.user) {
+        } else if (session?.user) {
           // Get user profile from database
           const { data: profile, error: profileError } = await supabase
             .from('profiles')
@@ -63,38 +63,52 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             .eq('id', session.user.id)
             .single()
 
+          if (!mounted || isInitialized) return
+
           if (profileError) {
+            console.error('Profile fetch failed:', profileError)
             setUser(null)
-            setIsInitializing(false)
-            return
+          } else {
+            const userData: User = {
+              id: session.user.id,
+              email: session.user.email!,
+              name: profile.name,
+              hotelName: profile.hotel_name,
+              provider: 'email'
+            }
+            setUser(userData)
           }
-
-          const userData: User = {
-            id: session.user.id,
-            email: session.user.email!,
-            name: profile.name,
-            hotelName: profile.hotel_name,
-            provider: 'email'
-          }
-
-          setUser(userData)
         } else {
           setUser(null)
         }
       } catch (error) {
         console.error('Auth check failed:', error)
-        setUser(null)
+        if (mounted && !isInitialized) {
+          setUser(null)
+        }
       } finally {
-        setIsInitializing(false)
+        if (mounted && !isInitialized) {
+          isInitialized = true
+          setIsInitializing(false)
+        }
       }
     }
 
     checkAuth()
 
-    // Listen for auth changes
+    // Fallback timeout to ensure isInitializing is always set to false
+    const timeoutId = setTimeout(() => {
+      if (mounted && !isInitialized) {
+        console.warn('Auth initialization timeout - forcing isInitializing to false')
+        isInitialized = true
+        setIsInitializing(false)
+      }
+    }, 5000) // 5 second timeout
+
+    // Listen for auth changes (but don't interfere with initial check)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth state change:', event, session?.user?.id)
+        if (!mounted || !isInitialized) return
         
         if (event === 'INITIAL_SESSION') {
           // This event fires after the initial session check
@@ -120,21 +134,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             }
             setUser(userData)
           }
-          setIsInitializing(false)
         } else if (event === 'SIGNED_OUT') {
           setUser(null)
-          setIsInitializing(false)
         }
       }
     )
 
     return () => {
+      mounted = false
+      clearTimeout(timeoutId)
       subscription.unsubscribe()
     }
   }, [])
 
   const login = async (email: string, password: string) => {
-    setIsLoading(true)
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -177,13 +190,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const errorMessage = error instanceof Error ? error.message : 'Login failed. Please try again.'
       toast.error(errorMessage)
       throw error
-    } finally {
-      setIsLoading(false)
     }
   }
 
   const signup = async (email: string, password: string, name: string, hotelName: string) => {
-    setIsLoading(true)
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -218,8 +228,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const errorMessage = error instanceof Error ? error.message : 'Signup failed. Please try again.'
       toast.error(errorMessage)
       throw error
-    } finally {
-      setIsLoading(false)
     }
   }
 
@@ -280,7 +288,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const value: AuthContextType = {
     user,
     isAuthenticated: !!user,
-    isLoading: isInitializing || isLoading, // Show loading if either initializing or doing auth operations
+    isInitializing,
     login,
     signup,
     logout,

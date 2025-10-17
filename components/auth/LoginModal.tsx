@@ -32,10 +32,11 @@ interface LoginModalProps {
 }
 
 export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, preventClose = false }) => {
-  const { login, signup, isLoading } = useAuth()
+  const { login, signup } = useAuth()
   
   const [isSignup, setIsSignup] = useState(false)
   const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
 
   const form = useForm({
@@ -50,6 +51,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, prevent
 
   const handleSubmit = async (data: any) => {
     setError('')
+    setIsSubmitting(true)
 
     try {
       if (isSignup) {
@@ -60,6 +62,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, prevent
       onClose()
     } catch (error) {
       setError('Authentication failed. Please try again.')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -175,9 +179,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, prevent
               <Button
                 type="submit"
                 className="w-full h-11"
-                disabled={isLoading}
+                disabled={isSubmitting}
               >
-                {isLoading ? (
+                {isSubmitting ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : null}
                 {isSignup ? 'Create Account' : 'Sign In'}

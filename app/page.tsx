@@ -6,8 +6,9 @@
 
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useAuth } from '@/components/auth/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { LoginModal } from '@/components/auth/LoginModal'
@@ -15,7 +16,32 @@ import { Shield, Smartphone, FileText, CheckCircle, ArrowRight, Users, Clock, Lo
 
 export default function LandingPage() {
   const router = useRouter()
+  const { isAuthenticated, isInitializing } = useAuth()
   const [showLoginModal, setShowLoginModal] = useState(false)
+
+  // Redirect authenticated users to dashboard
+  useEffect(() => {
+    if (!isInitializing && isAuthenticated) {
+      router.push('/dashboard')
+    }
+  }, [isAuthenticated, isInitializing, router])
+
+  // Show loading while checking auth
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-sm text-gray-600">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Don't render landing page if user is authenticated (will redirect)
+  if (isAuthenticated) {
+    return null
+  }
 
   const features = [
     {

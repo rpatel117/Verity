@@ -24,10 +24,11 @@ import { Loader2, Mail, Lock, User, Building, Shield } from 'lucide-react'
 import Link from 'next/link'
 
 export default function AuthPage() {
-  const { login, signup, isLoading } = useAuth()
+  const { login, signup } = useAuth()
   const router = useRouter()
   const [error, setError] = useState('')
   const [showEmailConfirmation, setShowEmailConfirmation] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const loginForm = useForm({
     resolver: zodResolver(LoginSchema),
@@ -49,23 +50,29 @@ export default function AuthPage() {
 
   const handleLogin = async (data: any) => {
     setError('')
+    setIsSubmitting(true)
     try {
       await login(data.email, data.password)
       router.push('/dashboard')
     } catch (error) {
       console.error('Login error:', error)
       setError('Login failed. Please check your credentials.')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
   const handleSignup = async (data: any) => {
     setError('')
+    setIsSubmitting(true)
     try {
       await signup(data.email, data.password, data.name, data.hotelName)
       setShowEmailConfirmation(true)
     } catch (error) {
       console.error('Signup error:', error)
       setError('Signup failed. Please try again.')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -220,9 +227,9 @@ export default function AuthPage() {
                     <Button
                       type="submit"
                       className="w-full"
-                      disabled={isLoading}
+                      disabled={isSubmitting}
                     >
-                      {isLoading ? (
+                      {isSubmitting ? (
                         <motion.div
                           variants={spin}
                           animate="animate"
@@ -356,9 +363,9 @@ export default function AuthPage() {
                     <Button
                       type="submit"
                       className="w-full"
-                      disabled={isLoading}
+                      disabled={isSubmitting}
                     >
-                      {isLoading ? (
+                      {isSubmitting ? (
                         <motion.div
                           variants={spin}
                           animate="animate"
