@@ -37,6 +37,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, prevent
   const [isSignup, setIsSignup] = useState(false)
   const [error, setError] = useState('')
 
+
   const form = useForm({
     resolver: zodResolver(isSignup ? SignupSchema : LoginSchema),
     defaultValues: {
@@ -58,7 +59,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, prevent
       }
       onClose()
     } catch (error) {
-      console.error('Authentication error:', error)
       setError('Authentication failed. Please try again.')
     }
   }
@@ -183,6 +183,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, prevent
                 {isSignup ? 'Create Account' : 'Sign In'}
               </Button>
 
+
               {!isSignup && (
                 <div className="text-center">
                   <Button
@@ -190,7 +191,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, prevent
                     className="text-sm text-muted-foreground hover:text-primary p-0 h-auto"
                     onClick={() => {
                       // TODO: Implement forgot password functionality
-                      console.log('Forgot password clicked')
                     }}
                   >
                     Forgot your password?

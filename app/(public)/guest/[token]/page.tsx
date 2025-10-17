@@ -50,15 +50,17 @@ export default function GuestPage() {
             policyText: POLICY_TEXT
           })
         } else {
-          setState({
-            status: 'error',
-            error: 'Invalid or expired token'
-          })
+        setState({
+          status: 'error',
+          policyText: POLICY_TEXT,
+          error: 'Invalid or expired token'
+        })
         }
       } catch (error) {
         console.error('Guest initialization failed:', error)
         setState({
           status: 'error',
+          policyText: POLICY_TEXT,
           error: 'Failed to load attestation page'
         })
       }
@@ -79,10 +81,11 @@ export default function GuestPage() {
       })
     } catch (error) {
       console.error('Confirmation failed:', error)
-      setState({
-        status: 'error',
-        error: 'Failed to confirm attestation'
-      })
+        setState({
+          status: 'error',
+          policyText: POLICY_TEXT,
+          error: 'Failed to confirm attestation'
+        })
     }
   }
 
@@ -178,7 +181,7 @@ export default function GuestPage() {
                 <Checkbox
                   id="accept"
                   checked={accepted}
-                  onCheckedChange={setAccepted}
+                  onCheckedChange={(checked) => setAccepted(checked === true)}
                   className="mt-1"
                 />
                 <label htmlFor="accept" className="text-sm text-foreground leading-relaxed">

@@ -5,7 +5,6 @@
  */
 
 import { 
-  AttestationRow, 
   AttestationEvent, 
   SendAttestationResponse, 
   GenerateReportResponse,
@@ -16,6 +15,8 @@ import {
   CheckInFormData,
   ReportFormData
 } from "@/types";
+
+export type { AttestationRow } from "@/types";
 
 export class TypedError extends Error {
   constructor(

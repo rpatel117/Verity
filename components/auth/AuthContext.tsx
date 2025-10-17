@@ -145,22 +145,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           .eq('id', data.user.id)
           .single()
 
-        if (profileError && profileError.code === 'PGRST116') {
-          // Profile doesn't exist, this shouldn't happen for existing users
-          throw new Error('User profile not found. Please contact support.')
-        } else if (profileError) {
-          throw new Error('Failed to fetch user profile')
+        if (profileError) {
+          if (profileError.code === 'PGRST116') {
+            // Profile doesn't exist, this shouldn't happen for existing users
+            throw new Error('User profile not found. Please contact support.')
+          } else {
+            throw new Error('Failed to fetch user profile')
+          }
         }
 
+        // Set user state immediately after successful login
+        const userData: User = {
+          id: data.user.id,
+          email: data.user.email!,
+          name: profile.name,
+          hotelName: profile.hotel_name,
+          provider: 'email'
+        }
+        setUser(userData)
         toast.success('Successfully signed in!')
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Login failed. Please try again.'
       toast.error(errorMessage)
-      setIsLoading(false) // Set loading to false on error
       throw error
+    } finally {
+      setIsLoading(false)
     }
-    // Note: Don't set isLoading(false) here - let the auth state change listener handle it
   }
 
   const signup = async (email: string, password: string, name: string, hotelName: string) => {
