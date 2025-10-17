@@ -39,7 +39,8 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null)
-  const [isLoading, setIsLoading] = useState(true) // Start as true while checking auth
+  const [isInitializing, setIsInitializing] = useState(true) // For initial auth check
+  const [isLoading, setIsLoading] = useState(false) // For login/signup operations
 
   // Check for existing session on mount
   useEffect(() => {
@@ -50,7 +51,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (error) {
           console.error('Auth check failed:', error)
           setUser(null)
-          setIsLoading(false)
+          setIsInitializing(false)
           return
         }
 
@@ -64,7 +65,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
           if (profileError) {
             setUser(null)
-            setIsLoading(false)
+            setIsInitializing(false)
             return
           }
 
@@ -84,7 +85,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.error('Auth check failed:', error)
         setUser(null)
       } finally {
-        setIsLoading(false)
+        setIsInitializing(false)
       }
     }
 
@@ -119,10 +120,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             }
             setUser(userData)
           }
-          setIsLoading(false)
+          setIsInitializing(false)
         } else if (event === 'SIGNED_OUT') {
           setUser(null)
-          setIsLoading(false)
+          setIsInitializing(false)
         }
       }
     )
@@ -279,7 +280,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const value: AuthContextType = {
     user,
     isAuthenticated: !!user,
-    isLoading,
+    isLoading: isInitializing || isLoading, // Show loading if either initializing or doing auth operations
     login,
     signup,
     logout,
