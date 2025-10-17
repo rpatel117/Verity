@@ -39,7 +39,7 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true) // Start as true while checking auth
 
   // Check for existing session on mount
   useEffect(() => {
@@ -93,6 +93,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('Auth state change:', event, session?.user?.id)
+        
+        if (event === 'INITIAL_SESSION') {
+          // This event fires after the initial session check
+          // Don't do anything here as checkAuth() already handled it
+          return
+        }
+        
         if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
           // Get user profile
           const { data: profile } = await supabase
@@ -116,7 +124,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setUser(null)
           setIsLoading(false)
         }
-        // Don't set isLoading(false) for other events like INITIAL_SESSION
       }
     )
 
