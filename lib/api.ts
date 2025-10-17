@@ -36,7 +36,7 @@ export async function sendAttestation(data: CheckInFormData): Promise<SendAttest
   try {
     const { supabase } = await import('@/lib/supabaseClient')
     
-    const { data: result, error } = await supabase.functions.invoke('send_attestation_sms_fixed', {
+    const { data: result, error } = await supabase.functions.invoke('send_attestation_sms', {
       body: {
         guest: {
           fullName: data.fullName,
