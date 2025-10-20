@@ -1,6 +1,6 @@
-# Hotel Check-in App
+# Verity - Hotel Check-in App
 
-A modern hotel check-in system with SMS verification and guest policy acceptance.
+A modern, secure hotel check-in system with SMS verification, guest policy acceptance, and compliance-ready reporting for the hospitality industry.
 
 ## 🚀 Quick Start
 
@@ -18,46 +18,100 @@ cp .env.example .env.local
 npm run dev
 ```
 
-## 📚 Documentation
+## 📋 Features
 
-**All documentation is centralized in the [`docs/`](./docs/) directory:**
+### For Hotels
+- **Secure Guest Verification**: SMS-based verification system
+- **Policy Acceptance**: Digital policy acceptance workflow
+- **Compliance Reporting**: Card arbitrator compliant reports
+- **Staff Dashboard**: Manage guest check-ins and verification
+- **Real-time Updates**: Live status tracking
 
-- **[📖 Main Documentation](./docs/README.md)** - Complete system overview
-- **[🔐 Authentication System](./docs/authentication.md)** - Auth setup, debugging, and fixes
-- **[✅ Verification Flow](./docs/verification-flow.md)** - Guest verification and SMS system
-- **[🐛 Debugging Guide](./docs/debugging.md)** - Troubleshooting and debug tools
-- **[⚙️ Development Setup](./docs/development.md)** - Local development environment
+### For Guests
+- **SMS Verification**: Receive verification codes via SMS
+- **Mobile-Friendly**: Responsive design for all devices
+- **Secure Process**: JWT-protected guest links
+- **Policy Transparency**: Clear policy acceptance flow
+
+### Security & Compliance
+- **Bank-Grade Encryption**: AES-256 encryption for all data
+- **PCI DSS Compliant**: Payment card industry standards
+- **SOC 2 Type II**: Security and compliance certification
+- **Privacy First**: Minimal data collection with automatic deletion
+- **Audit Trail**: Complete verification history for disputes
 
 ## 🏗️ Architecture
 
-### Core Systems
-
-- **Authentication**: Staff login with Supabase Auth
-- **SMS Verification**: Twilio integration for guest codes
-- **Policy Acceptance**: Secure guest policy workflow
-- **Code Verification**: Staff verification system
-
 ### Tech Stack
-
-- **Frontend**: Next.js 14, React, TypeScript, Tailwind CSS
+- **Frontend**: Next.js 15, React 19, TypeScript, Tailwind CSS
 - **Backend**: Supabase (PostgreSQL, Edge Functions, Auth)
 - **SMS**: Twilio for verification codes
+- **Email**: EmailJS for contact forms
 - **Deployment**: Vercel (frontend), Supabase (backend)
+
+### Project Structure
+```
+app/
+├── layout.tsx              # Root layout with AuthProvider
+├── page.tsx                # Landing page
+├── (public)/               # Public routes (auth, guest)
+│   ├── auth/              # Authentication pages
+│   └── guest/[token]/     # Guest verification pages
+└── (protected)/            # Protected routes (dashboard)
+    └── dashboard/         # Staff dashboard
+        ├── check-in/     # Guest check-in form
+        ├── data/         # Data management
+        └── reports/      # Compliance reports
+
+components/
+├── auth/                  # Authentication components
+├── checkin/              # Check-in and verification
+├── ContactForm.tsx       # Demo request form
+└── ui/                   # Reusable UI components
+
+lib/
+├── api.ts                # API client functions
+├── supabaseClient.ts     # Supabase configuration
+└── validation.ts         # Form validation schemas
+
+supabase/
+├── functions/            # Edge functions
+│   ├── send_attestation_sms_fixed/  # SMS sending
+│   ├── guest_confirm/               # Policy acceptance
+│   ├── guest_init/                  # Guest initialization
+│   └── guest_event/                 # Event logging
+└── migrations/           # Database migrations
+```
 
 ## 🛠️ Development
 
 ### Commands
-
 ```bash
 npm run dev              # Development server
 npm run dev:clean        # Clean build and restart
 npm run build            # Production build
-npm test                 # Run tests
+npm start                # Production server
 npm run lint             # Code linting
 ```
 
-### Debug Tools
+### Environment Variables
+```env
+# Supabase Configuration
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 
+# Twilio SMS Configuration
+TWILIO_ACCOUNT_SID=your_twilio_sid
+TWILIO_AUTH_TOKEN=your_twilio_token
+TWILIO_PHONE_NUMBER=your_twilio_phone
+
+# EmailJS Configuration
+NEXT_PUBLIC_EMAILJS_SERVICE_ID=your_service_id
+NEXT_PUBLIC_EMAILJS_TEMPLATE_ID=your_template_id
+NEXT_PUBLIC_EMAILJS_PUBLIC_KEY=your_public_key
+```
+
+### Debug Tools
 ```javascript
 // Available in browser console (development mode)
 window.checkAuthState()        // Check authentication state
@@ -66,121 +120,134 @@ window.clearAuthState()         // Clear and reload
 window.forceLogout()            // Force logout
 ```
 
-## 🔧 Recent Fixes
+## 🔄 Workflow
 
-### Authentication Issues Resolved
+### Staff Check-in Process
+1. **Staff Login**: Secure authentication via Supabase
+2. **Guest Information**: Collect guest details and stay information
+3. **SMS Dispatch**: Send verification code to guest's phone
+4. **Policy Link**: Guest receives secure link for policy acceptance
+5. **Code Verification**: Staff verifies guest's code for check-in
 
-- ✅ **Hooks Order**: Fixed React hooks violations
-- ✅ **Loading States**: Added timeout fallbacks and manual overrides
-- ✅ **Session Management**: Simplified auth state management
-- ✅ **Debug Tools**: Added comprehensive debugging helpers
-
-### Verification Flow Fixed
-
-- ✅ **Code Mismatch**: Fixed hash mismatch between generation and verification
-- ✅ **UI Loading**: Added timeout handling and error recovery
-- ✅ **Double Calls**: Prevented duplicate function calls
-- ✅ **Error Handling**: Enhanced error management throughout
-
-## 📁 Project Structure
-
-```
-app/
-├── layout.tsx              # Root layout with AuthProvider
-├── page.tsx                # Landing page
-├── (public)/               # Public routes (auth, guest)
-└── (protected)/            # Protected routes (dashboard)
-
-components/
-├── auth/                   # Authentication components
-├── checkin/               # Check-in and verification
-└── ui/                     # Reusable UI components
-
-lib/
-├── api.ts                  # API client functions
-├── supabaseClient.ts       # Supabase configuration
-└── validation.ts           # Form validation schemas
-
-supabase/
-├── functions/              # Edge functions
-└── migrations/             # Database migrations
-
-docs/                       # 📚 Centralized documentation
-├── README.md              # Main documentation
-├── authentication.md      # Auth system guide
-├── verification-flow.md    # Verification system guide
-├── debugging.md           # Debugging and troubleshooting
-└── development.md         # Development setup
-```
+### Guest Verification Process
+1. **SMS Received**: Guest gets verification code via SMS
+2. **Policy Acceptance**: Guest clicks link and accepts policies
+3. **Code Display**: Guest sees verification code for staff
+4. **Staff Verification**: Staff enters code to complete check-in
 
 ## 🧪 Testing
 
 ### Manual Testing Checklist
-
 - [ ] Authentication flow (login, logout, session persistence)
 - [ ] Guest check-in to verification
 - [ ] Error handling (invalid codes, network issues)
-- [ ] Incognito mode (should show landing page)
-- [ ] No hooks order errors
-- [ ] No infinite loading states
+- [ ] Contact form functionality
+- [ ] Responsive design on mobile devices
+- [ ] EmailJS integration for demo requests
 
-### Automated Testing
-
-```bash
-npm test                   # Run all tests
-npm run test:coverage      # Run with coverage
-npm run test:e2e          # End-to-end tests
-```
+### Test Data
+- **Test Verification Code**: `117001` (for development testing)
+- **Test Phone**: Use your own number for SMS testing
+- **Test Email**: Use your email for contact form testing
 
 ## 🚀 Deployment
 
-### Environment Variables
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-TWILIO_ACCOUNT_SID=your_twilio_sid
-TWILIO_AUTH_TOKEN=your_twilio_token
-TWILIO_PHONE_NUMBER=your_twilio_phone
-```
-
 ### Production Checklist
-
 - [ ] Environment variables configured
 - [ ] Supabase edge functions deployed
 - [ ] Database migrations applied
 - [ ] Twilio credentials set
+- [ ] EmailJS configuration complete
 - [ ] Error monitoring configured
+- [ ] Performance monitoring enabled
+
+### Build Commands
+```bash
+# Development
+npm run dev
+
+# Production build
+npm run build
+npm start
+
+# Clean development
+npm run dev:clean
+```
 
 ## 🆘 Troubleshooting
 
-### Quick Fixes
+### Common Issues
 
+**Authentication Issues**
+- **"useAuth must be used within an AuthProvider"**: Ensure AuthProvider is in root layout
+- **Infinite loading**: Use timeout fallback or manual override button
+- **Auto-login in incognito**: Use `window.nuclearAuthClear()` in console
+
+**Verification Issues**
+- **Code mismatch**: Ensure `guest_confirm` doesn't regenerate codes
+- **UI stuck loading**: Check API timeouts and error handling
+- **Double SMS sends**: Add submission guards to forms
+
+**Contact Form Issues**
+- **EmailJS not working**: Check environment variables and template configuration
+- **Form not submitting**: Verify EmailJS service is active
+
+### Quick Fixes
 1. **Authentication issues**: Use `window.nuclearAuthClear()` in console
 2. **Infinite loading**: Click "Force Show Landing Page" button
 3. **Hooks errors**: Check hooks are called before conditional returns
 4. **Code verification**: Test with `117001` (test code)
 
-### Getting Help
+## 📚 Documentation
 
-1. **Check documentation**: Review [`docs/`](./docs/) directory
-2. **Use debug tools**: Browser console helpers
-3. **Check console logs**: Look for error messages
-4. **Test in incognito**: Verify clean state
+### Core Systems
+- **Authentication System**: Staff login, session management, and debugging
+- **Verification Flow**: Guest verification, SMS flow, and code validation
+- **API Documentation**: Backend endpoints and edge functions
+- **Database Schema**: Database structure and relationships
+
+### Development Guides
+- **Development Setup**: Local development environment
+- **Debugging Guide**: Troubleshooting and debugging tools
+- **Testing Guide**: Testing procedures and test cases
+
+## 🤝 Contributing
+
+### Code Standards
+- **React**: Functional components with hooks
+- **TypeScript**: Strict type checking
+- **Styling**: Tailwind CSS with consistent design
+- **Testing**: Jest and React Testing Library
+
+### Git Workflow
+1. Create feature branch
+2. Implement changes
+3. Add tests
+4. Update documentation
+5. Submit pull request
 
 ## 📄 License
 
 [Add your license information here]
 
-## 🤝 Contributing
+## 🆕 Recent Updates
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Update documentation
-6. Submit a pull request
+### v1.4.0 - Current Version
+- ✅ **Landing Page**: Modern UI with security/compliance focus
+- ✅ **Contact Form**: EmailJS integration for demo requests
+- ✅ **Shield Favicon**: Professional branding
+- ✅ **Suspense Boundaries**: Fixed Next.js deployment issues
+- ✅ **EmailJS Integration**: Demo request functionality
+- ✅ **UI/UX Improvements**: Enhanced user experience
+
+### Previous Versions
+- **v1.3.0**: Fixed critical verification flow issues
+- **v1.2.0**: Enhanced authentication and debugging tools
+- **v1.1.0**: Added SMS verification system
+- **v1.0.0**: Initial release with basic functionality
 
 ---
 
-**📚 For complete documentation, see the [`docs/`](./docs/) directory.**
+**Verity - a Shadow Solutions product**
+
+*Enterprise-grade guest verification with compliance-ready reporting*
