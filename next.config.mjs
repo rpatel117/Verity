@@ -9,14 +9,9 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // Disable the development overlay modal
+  // Development indicators configuration
   devIndicators: {
-    buildActivity: false,
-    buildActivityPosition: 'bottom-right',
-  },
-  // Disable the error overlay
-  experimental: {
-    errorOverlay: false,
+    position: 'bottom-right',
   },
 }
 

@@ -6,7 +6,7 @@
 
 "use client"
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -38,16 +38,24 @@ export default function GuestPage() {
   
   const [accepted, setAccepted] = useState(false)
   const [copied, setCopied] = useState(false)
+  const initializedRef = useRef(false)
 
   useEffect(() => {
+    // Prevent multiple initializations
+    if (initializedRef.current) {
+      return
+    }
+    
     const initializeGuest = async () => {
+      initializedRef.current = true
       try {
         console.log('Initializing guest with token:', token)
         console.log('Token length:', token?.length)
         console.log('Token type:', typeof token)
 
         // Check if token looks like a JWT (has dots)
-        if (!token || typeof token !== 'string') {
+        if (!token || typeof token !== 'string' || !token.includes('.')) {
+          console.error('Invalid token format:', token)
           setState({
             status: 'error',
             policyText: POLICY_TEXT,
@@ -56,23 +64,40 @@ export default function GuestPage() {
           return
         }
 
-        // Capture IP address and geolocation
+        // Capture IP address and geolocation with timeout
         const captureLocation = async () => {
           try {
-            // Get IP address
-            const ipResponse = await fetch('https://api.ipify.org?format=json')
+            // Get IP address with timeout
+            const ipPromise = fetch('https://api.ipify.org?format=json', { 
+              signal: AbortSignal.timeout(5000) // 5 second timeout
+            })
+            const ipResponse = await ipPromise
             const ipData = await ipResponse.json()
             const ip = ipData.ip
 
-            // Get geolocation
+            // Get geolocation with timeout
             let latitude, longitude, accuracy
             if (navigator.geolocation) {
               const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-                navigator.geolocation.getCurrentPosition(resolve, reject, {
-                  enableHighAccuracy: true,
-                  timeout: 10000,
-                  maximumAge: 300000 // 5 minutes
-                })
+                const timeoutId = setTimeout(() => {
+                  reject(new Error('Geolocation timeout'))
+                }, 5000) // 5 second timeout
+                
+                navigator.geolocation.getCurrentPosition(
+                  (pos) => {
+                    clearTimeout(timeoutId)
+                    resolve(pos)
+                  },
+                  (err) => {
+                    clearTimeout(timeoutId)
+                    reject(err)
+                  },
+                  {
+                    enableHighAccuracy: false, // Faster, less accurate
+                    timeout: 5000,
+                    maximumAge: 300000 // 5 minutes
+                  }
+                )
               })
               latitude = position.coords.latitude
               longitude = position.coords.longitude
@@ -89,7 +114,12 @@ export default function GuestPage() {
         const locationData = await captureLocation()
 
         // Call the guest_init edge function to validate the token
-        const { supabase } = await import('@/lib/supabaseClient')
+        // Use anonymous Supabase client for guest pages
+        const { createClient } = await import('@supabase/supabase-js')
+        const supabase = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        )
         const { data, error } = await supabase.functions.invoke('guest_init', {
           body: { token }
         })
@@ -137,12 +167,32 @@ export default function GuestPage() {
     }
 
     initializeGuest()
+    
+    // Fallback timeout to prevent infinite loading
+    const timeoutId = setTimeout(() => {
+      if (state.status === 'loading') {
+        console.warn('Guest initialization timeout - forcing error state')
+        setState({
+          status: 'error',
+          policyText: POLICY_TEXT,
+          error: 'Page load timeout. Please refresh and try again.'
+        })
+      }
+    }, 15000) // 15 second timeout
+    
+    return () => {
+      clearTimeout(timeoutId)
+    }
   }, [token])
 
   const handleContinue = async () => {
     try {
-      // Call the guest_confirm edge function
-      const { supabase } = await import('@/lib/supabaseClient')
+      // Call the guest_confirm edge function using anonymous client
+      const { createClient } = await import('@supabase/supabase-js')
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      )
       const { data, error } = await supabase.functions.invoke('guest_confirm', {
         body: {
           token,
@@ -150,7 +200,13 @@ export default function GuestPage() {
         }
       })
 
+      console.log('guest_confirm response - error:', error)
+      console.log('guest_confirm response - data:', JSON.stringify(data, null, 2))
+      console.log('guest_confirm response - data.ok:', data?.ok)
+      console.log('guest_confirm response - typeof data:', typeof data)
+
       if (error || !data?.ok) {
+        console.error('Confirmation failed - error:', error, 'data:', data)
         setState({
           status: 'error',
           policyText: POLICY_TEXT,
@@ -173,10 +229,27 @@ export default function GuestPage() {
         console.log('Failed to log policy acceptance event:', logError)
       }
 
+      // Retrieve the verification code directly from the database
+      const { data: attestationData, error: attestationError } = await supabase
+        .from('attestations')
+        .select('code_enc')
+        .eq('token', token)
+        .single()
+
+      if (attestationError || !attestationData?.code_enc) {
+        console.error('Failed to retrieve verification code:', attestationError)
+        setState({
+          status: 'error',
+          policyText: POLICY_TEXT,
+          error: 'Failed to retrieve verification code'
+        })
+        return
+      }
+
       setState({
         status: 'success',
         policyText: POLICY_TEXT,
-        code: data.code
+        code: attestationData.code_enc
       })
     } catch (error) {
       console.error('Confirmation failed:', error)
@@ -202,6 +275,9 @@ export default function GuestPage() {
         <div className="text-center">
           <Loader2 className="h-8 w-8 mx-auto mb-4 text-primary animate-spin" />
           <p className="text-sm text-muted-foreground">Loading attestation...</p>
+          <p className="text-xs text-muted-foreground mt-2">
+            If this takes too long, please refresh the page
+          </p>
         </div>
       </div>
     )

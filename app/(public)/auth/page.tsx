@@ -7,8 +7,8 @@
 
 "use client"
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/components/auth/AuthContext'
 import { LoginSchema, SignupSchema } from '@/lib/validation'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -24,11 +24,22 @@ import { Loader2, Mail, Lock, User, Building, Shield } from 'lucide-react'
 import Link from 'next/link'
 
 export default function AuthPage() {
-  const { login, signup } = useAuth()
+  const { login, signup, isAuthenticated, isInitializing } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [error, setError] = useState('')
   const [showEmailConfirmation, setShowEmailConfirmation] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  
+  // Get the default tab from URL params
+  const defaultTab = searchParams.get('tab') === 'signup' ? 'signup' : 'login'
+
+  // Redirect authenticated users to dashboard
+  useEffect(() => {
+    if (!isInitializing && isAuthenticated) {
+      router.push('/dashboard')
+    }
+  }, [isAuthenticated, isInitializing, router])
 
   const loginForm = useForm({
     resolver: zodResolver(LoginSchema),
@@ -47,6 +58,23 @@ export default function AuthPage() {
       hotelName: '',
     },
   })
+
+  // Show loading while checking auth
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-sm text-gray-600">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Don't render auth page if user is authenticated (will redirect)
+  if (isAuthenticated) {
+    return null
+  }
 
   const handleLogin = async (data: any) => {
     setError('')
@@ -156,7 +184,7 @@ export default function AuthPage() {
           initial="initial"
           animate="animate"
         >
-          <Tabs defaultValue="login" className="w-full">
+          <Tabs defaultValue={defaultTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2 glass-panel">
               <TabsTrigger value="login">Sign In</TabsTrigger>
               <TabsTrigger value="signup">Sign Up</TabsTrigger>

@@ -76,10 +76,8 @@ serve(async (req) => {
       .select(`
         id,
         policy_text,
-        guests!inner(
-          full_name,
-          phone_e164
-        )
+        guest_full_name,
+        guest_phone_e164
       `)
       .eq('token', token)
       .single()

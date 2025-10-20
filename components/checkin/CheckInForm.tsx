@@ -46,12 +46,23 @@ export function CheckInForm({ onSmsSent }: CheckInFormProps) {
   })
 
   const onSubmit = async (data: CheckInFormData) => {
+    console.log('📝 CheckInForm: onSubmit called with data:', data)
+    console.log('📝 CheckInForm: isSubmitting was:', isSubmitting)
+    
+    // Prevent double submission
+    if (isSubmitting) {
+      console.log('📝 CheckInForm: Already submitting, ignoring duplicate call')
+      return
+    }
+    
     setIsSubmitting(true)
     setError('')
     setIsSuccess(false)
 
     try {
+      console.log('📝 CheckInForm: About to call sendAttestation API')
       const response = await sendAttestation(data)
+      console.log('📝 CheckInForm: sendAttestation API returned:', response)
 
       console.log('Attestation sent successfully!', {
         description: `SMS sent to ${data.phoneE164}. Guest ID: ${response.guestId}`,

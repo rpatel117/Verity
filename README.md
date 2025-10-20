@@ -1,684 +1,186 @@
-# Hotel Check-In App
+# Hotel Check-in App
 
-A production-ready React Native application for secure hotel guest check-ins using two-factor authentication via SMS. Built with Expo, Supabase, and Twilio.
+A modern hotel check-in system with SMS verification and guest policy acceptance.
 
-## Overview
+## 🚀 Quick Start
 
-This app streamlines the hotel check-in process by verifying guest identity through SMS verification codes. Hotel staff enter guest information, guests receive an SMS with a verification code and privacy policy link, and check-in is completed when the code is verified.
-
-## Recent Updates - Full Production Flow Implementation
-
-### ✅ Complete End-to-End Guest Attestation System
-
-The application now features a complete production-ready guest attestation flow:
-
-1. **Hotel Staff** fills out check-in form with guest details
-2. **System** generates a unique JWT token and 6-digit verification code
-3. **Guest** receives SMS with a secure link to attestation page
-4. **Guest** visits link, reviews policy, and accepts terms
-5. **System** displays the 6-digit code for hotel staff verification
-
-### 🔧 Technical Implementation Details
-
-#### Edge Functions Deployed:
-- **`send_attestation_sms_fixed`**: Generates JWT tokens, creates guest records, sends SMS
-- **`guest_init`**: Validates JWT tokens and returns policy information
-- **`guest_confirm`**: Processes policy acceptance and returns verification code
-
-#### Key Features Implemented:
-- **JWT Token Security**: 24-hour expiry, signed with secret key
-- **URL Encoding**: JWT tokens properly encoded for guest links
-- **Development Mode**: Mock SMS logging for local testing
-- **Database Integration**: Full guest and attestation record management
-- **Error Handling**: Comprehensive validation and error responses
-
-#### Authentication State Management Fixed:
-- Separated `isInitializing` (initial auth check) from `isLoading` (login operations)
-- Fixed login modal spinning issue
-- Proper state management across public and protected routes
-
-### 🚀 How the Complete Flow Works
-
-1. **Staff Check-in Process**:
-   ```
-   Staff enters guest info → System generates JWT → SMS sent to guest
-   ```
-
-2. **Guest Attestation Process**:
-   ```
-   Guest clicks SMS link → JWT validated → Policy displayed → Guest accepts → Code shown
-   ```
-
-3. **Verification Process**:
-   ```
-   Staff enters 6-digit code → System verifies → Check-in complete
-   ```
-
-### 📱 Frontend Architecture
-
-- **Protected Routes**: Hotel staff dashboard with authentication
-- **Public Routes**: Guest attestation pages (no auth required)
-- **Route Groups**: `(protected)` and `(public)` for proper layout isolation
-- **State Management**: React Context for authentication state
-- **Error Handling**: Comprehensive error states and user feedback
-
-### 🔒 Security Implementation
-
-- **JWT Tokens**: Signed with secret key, 24-hour expiry
-- **URL Encoding**: Proper encoding/decoding of tokens in URLs
-- **Database Security**: Row-level security policies
-- **Input Validation**: Client and server-side validation
-- **Error Handling**: Secure error messages without information leakage
-
-### 🛠 Development vs Production
-
-**Development Mode** (Current):
-- Mock SMS logging to console
-- No Twilio credentials required
-- Full database integration
-- Real JWT token generation
-
-**Production Mode** (Ready):
-- Real Twilio SMS sending
-- Production secrets configuration
-- Full error monitoring
-- Rate limiting and security policies
-
-## Features
-
-- **Two-Factor Authentication**: SMS-based verification using Twilio
-- **Secure Data Handling**: JWT-based authentication with automatic token refresh
-- **Privacy Compliance**: Built-in privacy policy acceptance and logging
-- **Input Validation**: Comprehensive client-side validation and sanitization
-- **Modern UI**: Clean, professional interface built with React Native
-- **Cross-Platform**: Runs on iOS, Android, and web browsers with the same codebase
-
-## Tech Stack
-
-- **Frontend**: React Native with Expo (iOS, Android, Web)
-- **Backend**: Supabase (PostgreSQL + Edge Functions)
-- **SMS**: Twilio (via Supabase Edge Functions)
-- **Authentication**: JWT tokens with secure storage
-- **Styling**: NativeWind (Tailwind CSS for React Native)
-- **Navigation**: Expo Router (file-based routing)
-
-## Prerequisites
-
-Before you begin, ensure you have the following installed:
-
-- **Node.js** (v18 or higher)
-- **npm** or **yarn**
-- **Expo CLI**: `npm install -g expo-cli`
-- **iOS Simulator** (Mac only) or **Android Studio** (for Android emulator) - optional for mobile testing
-- **Supabase Account**: [https://supabase.com](https://supabase.com)
-- **Twilio Account**: [https://twilio.com](https://twilio.com)
-
-## Quick Start
-
-### 1. Clone and Install
-
-\`\`\`bash
-# Clone the repository
+```bash
+# Clone and install
 git clone <repository-url>
 cd hotel-checkin-app
-
-# Install dependencies
 npm install
-\`\`\`
 
-### 2. Supabase Setup
+# Set up environment
+cp .env.example .env.local
+# Edit .env.local with your credentials
 
-#### Create Supabase Project
-
-1. Go to [https://supabase.com](https://supabase.com) and create a new project
-2. Wait for the project to finish setting up
-
-#### Deploy Edge Functions
-
-The app calls Supabase Edge Functions for SMS operations. Deploy them first:
-
-\`\`\`bash
-# Install Supabase CLI
-npm install -g supabase
-
-# Login to Supabase
-supabase login
-
-# Link your project (find project-ref in your Supabase dashboard URL)
-supabase link --project-ref your-project-ref
-
-# Deploy edge functions to Supabase
-supabase functions deploy send-sms
-supabase functions deploy verify-code
-
-# Set Twilio secrets for edge functions
-supabase secrets set TWILIO_ACCOUNT_SID=your-sid
-supabase secrets set TWILIO_AUTH_TOKEN=your-token
-supabase secrets set TWILIO_PHONE_NUMBER=+1234567890
-\`\`\`
-
-#### Setup Database
-
-Run the SQL scripts to create tables and policies:
-
-1. Go to your Supabase project dashboard
-2. Navigate to **SQL Editor**
-3. Copy and run `backend/schema.sql`
-
-### 3. Environment Setup
-
-Create a `.env` file in the root directory:
-
-\`\`\`bash
-cp .env.example .env
-\`\`\`
-
-Edit `.env` with your Supabase credentials (no Twilio keys needed locally):
-
-\`\`\`env
-# Supabase Configuration (from your Supabase dashboard)
-EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
-
-# Privacy Policy URL
-EXPO_PUBLIC_PRIVACY_POLICY_URL=https://yourhotel.com/privacy
-\`\`\`
-
-**Note**: Twilio credentials are stored as Supabase secrets and only used by Edge Functions. You don't need them locally.
-
-### 4. Run the App
-
-The app will call your deployed Supabase Edge Functions automatically:
-
-#### **Web Browser (Recommended for Quick Preview)**
-
-\`\`\`bash
-npm run web
-\`\`\`
-
-Opens in your default browser at `http://localhost:8081`
-
-#### iOS Simulator (Mac only)
-
-\`\`\`bash
-npm run ios
-\`\`\`
-
-#### Android Emulator
-
-\`\`\`bash
-npm run android
-\`\`\`
-
-#### Physical Device
-
-\`\`\`bash
-# Start the development server
-npm start
-
-# Scan the QR code with:
-# - Expo Go app (iOS/Android)
-# - Camera app (iOS only)
-\`\`\`
-
-## Architecture
-
-### Local Development + Remote Edge Functions
-
-This app is configured for **hybrid development**:
-
-- **Frontend (Local)**: React Native app runs on your device/simulator/browser
-- **Backend (Remote)**: Edge Functions run on Supabase infrastructure
-- **Database (Remote)**: PostgreSQL hosted on Supabase
-
-**Benefits**:
-- No need to run Deno or Supabase CLI locally
-- Twilio credentials stay secure in Supabase secrets
-- Faster development without backend setup
-- Production-like environment during development
-
-**How it works**:
-1. App calls `supabase.functions.invoke('send-sms', ...)`
-2. Request goes to your deployed Supabase Edge Function
-3. Edge Function uses Twilio to send SMS
-4. Response returns to your local app
-
-### Cross-Platform Storage
-
-The app uses a smart storage abstraction:
-- **Mobile (iOS/Android)**: Expo SecureStore (encrypted)
-- **Web**: localStorage (browser storage)
-
-This ensures secure token storage across all platforms.
-
-## Project Structure
-
-\`\`\`
-hotel-checkin-app/
-├── app/                          # Expo Router screens
-│   ├── _layout.tsx              # Root layout with navigation
-│   ├── index.tsx                # Owner reservation screen
-│   ├── privacy-policy.tsx       # Privacy policy screen
-│   ├── code-verification.tsx    # SMS code verification screen
-│   └── confirmation.tsx         # Check-in confirmation screen
-│
-├── src/
-│   ├── components/              # Reusable UI components
-│   │   ├── Button.tsx          # Primary/secondary button
-│   │   ├── InputField.tsx      # Form input with validation
-│   │   ├── Loader.tsx          # Loading indicator
-│   │   └── PolicyModal.tsx     # Privacy policy modal
-│   │
-│   ├── services/               # Backend integration
-│   │   ├── supabaseClient.ts  # Supabase client setup
-│   │   ├── auth.ts            # JWT token management
-│   │   └── sms.ts             # SMS sending/verification
-│   │
-│   ├── context/               # React Context providers
-│   │   └── AuthContext.tsx   # Authentication state
-│   │
-│   ├── utils/                 # Utilities and helpers
-│   │   ├── validation.ts     # Input validation functions
-│   │   └── constants.ts      # App constants
-│   │
-│   └── styles/               # Design system
-│       ├── colors.ts        # Color palette
-│       └── typography.ts    # Font styles
-│
-├── backend/                  # Supabase backend code
-│   ├── schema.sql           # Database schema
-│   ├── seed.sql             # Sample data
-│   ├── send-sms.ts          # Edge function: Send SMS
-│   └── verify-code.ts       # Edge function: Verify code
-│
-├── .env.example             # Environment variables template
-├── app.config.js            # Expo configuration
-├── package.json             # Dependencies
-├── tailwind.config.js       # Tailwind CSS configuration
-├── README.md                # This file
-└── DOCS.md                  # Detailed documentation
-\`\`\`
-
-## Development Workflow
-
-### Best Practices
-
-1. **Branch Strategy**: Create feature branches from `main`
-   \`\`\`bash
-   git checkout -b feature/your-feature-name
-   \`\`\`
-
-2. **Testing Flows**: Test the complete check-in flow regularly
-   - Enter guest information
-   - Verify SMS is sent (check Twilio logs)
-   - Enter verification code
-   - Confirm check-in completion
-
-3. **JWT Token Testing**: Use Supabase dashboard to inspect tokens
-   - Check token expiration times
-   - Verify refresh token functionality
-   - Test with expired tokens
-
-4. **Environment Variables**: Never commit `.env` file
-   - Use `.env.example` as template
-   - Document all required variables
-
-### Making Changes
-
-#### Frontend Changes (Local)
-
-1. Edit files in `app/` or `src/`
-2. Changes hot-reload automatically
-3. Test on your device/simulator
-
-#### Backend Changes (Edge Functions)
-
-1. Edit files in `backend/send-sms.ts` or `backend/verify-code.ts`
-2. Deploy to Supabase:
-   \`\`\`bash
-   supabase functions deploy send-sms
-   # or
-   supabase functions deploy verify-code
-   \`\`\`
-3. Test from your local app
-
-#### Database Changes
-
-1. Edit `backend/schema.sql`
-2. Run the updated SQL in Supabase SQL Editor
-3. Or create a new migration:
-   \`\`\`bash
-   supabase migration new your_migration_name
-   \`\`\`
-
-### Common Commands
-
-\`\`\`bash
-# Start development server
-npm start
-
-# Clear cache and restart
-npm start --clear
-
-# Run on specific platform
-npm run ios
-npm run android
-npm run web
-
-# Type checking
-npx tsc --noEmit
-
-# Lint code
-npx eslint .
-\`\`\`
-
-### Testing Edge Functions
-
-View logs for deployed Edge Functions:
-
-\`\`\`bash
-# View real-time logs
-supabase functions logs send-sms --follow
-supabase functions logs verify-code --follow
-\`\`\`
-
-Or check logs in Supabase Dashboard → Edge Functions → Logs
-
-## Building for Production
-
-### iOS
-
-\`\`\`bash
-# Build for iOS
-eas build --platform ios
-
-# Submit to App Store
-eas submit --platform ios
-\`\`\`
-
-### Android
-
-\`\`\`bash
-# Build for Android
-eas build --platform android
-
-# Submit to Google Play
-eas submit --platform android
-\`\`\`
-
-### Web
-
-\`\`\`bash
-# Build for web
-npx expo export:web
-
-# Deploy to Vercel
-vercel deploy
-\`\`\`
-
-## Troubleshooting
-
-### SMS Not Sending
-
-1. **Check Edge Function deployment**:
-   \`\`\`bash
-   supabase functions list
-   \`\`\`
-   Ensure `send-sms` is deployed
-
-2. **Check Twilio secrets**:
-   \`\`\`bash
-   supabase secrets list
-   \`\`\`
-   Verify `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER` are set
-
-3. **Check Edge Function logs**:
-   \`\`\`bash
-   supabase functions logs send-sms
-   \`\`\`
-
-4. **Verify Twilio account**:
-   - Check account balance
-   - Verify phone number is verified (for trial accounts)
-   - Check Twilio console for error logs
-
-### Code Verification Fails
-
-1. **Check Edge Function logs**:
-   \`\`\`bash
-   supabase functions logs verify-code
-   \`\`\`
-
-2. **Verify database records**:
-   - Go to Supabase Dashboard → Table Editor
-   - Check `check_ins` table for recent entries
-   - Verify `verification_code` matches what was sent
-
-3. **Check rate limiting**:
-   - Edge function limits verification attempts
-   - Wait a few minutes and try again
-
-### Environment Variable Issues
-
-1. **Frontend can't connect to Supabase**:
-   - Verify `.env` file exists
-   - Check `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`
-   - Restart Expo server: `npm start --clear`
-
-2. **Edge Functions can't access secrets**:
-   - Secrets must be set via Supabase CLI, not in `.env`
-   - Re-deploy after setting secrets:
-     \`\`\`bash
-     supabase secrets set TWILIO_ACCOUNT_SID=your-sid
-     supabase functions deploy send-sms
-     \`\`\`
-
-## Security Considerations
-
-- **Row-Level Security (RLS)**: All database tables have RLS policies
-- **Input Validation**: All user input is validated and sanitized
-- **Secure Storage**: JWT tokens stored in encrypted SecureStore
-- **Rate Limiting**: Backend implements rate limiting on verification attempts
-- **Privacy Compliance**: Privacy policy acceptance is logged for each check-in
-
-## Technical Documentation - Guest Attestation Flow
-
-### 🔧 Detailed Implementation Guide
-
-#### 1. Edge Function Architecture
-
-**`send_attestation_sms_fixed` Function:**
-```typescript
-// Key responsibilities:
-- Authenticate hotel staff via JWT
-- Generate 6-digit verification code
-- Create JWT token for guest link (24h expiry)
-- Create guest and attestation database records
-- Send SMS with guest link (or log in dev mode)
-- Return attestation ID and guest URL
+# Start development
+npm run dev
 ```
 
-**`guest_init` Function:**
-```typescript
-// Key responsibilities:
-- Validate JWT token from guest URL
-- Check token expiration
-- Return policy text for display
-- Log page access events
+## 📚 Documentation
+
+**All documentation is centralized in the [`docs/`](./docs/) directory:**
+
+- **[📖 Main Documentation](./docs/README.md)** - Complete system overview
+- **[🔐 Authentication System](./docs/authentication.md)** - Auth setup, debugging, and fixes
+- **[✅ Verification Flow](./docs/verification-flow.md)** - Guest verification and SMS system
+- **[🐛 Debugging Guide](./docs/debugging.md)** - Troubleshooting and debug tools
+- **[⚙️ Development Setup](./docs/development.md)** - Local development environment
+
+## 🏗️ Architecture
+
+### Core Systems
+
+- **Authentication**: Staff login with Supabase Auth
+- **SMS Verification**: Twilio integration for guest codes
+- **Policy Acceptance**: Secure guest policy workflow
+- **Code Verification**: Staff verification system
+
+### Tech Stack
+
+- **Frontend**: Next.js 14, React, TypeScript, Tailwind CSS
+- **Backend**: Supabase (PostgreSQL, Edge Functions, Auth)
+- **SMS**: Twilio for verification codes
+- **Deployment**: Vercel (frontend), Supabase (backend)
+
+## 🛠️ Development
+
+### Commands
+
+```bash
+npm run dev              # Development server
+npm run dev:clean        # Clean build and restart
+npm run build            # Production build
+npm test                 # Run tests
+npm run lint             # Code linting
 ```
 
-**`guest_confirm` Function:**
-```typescript
-// Key responsibilities:
-- Validate JWT token
-- Process policy acceptance
-- Return 6-digit verification code
-- Update attestation status
+### Debug Tools
+
+```javascript
+// Available in browser console (development mode)
+window.checkAuthState()        // Check authentication state
+window.nuclearAuthClear()       // Clear all auth data
+window.clearAuthState()         // Clear and reload
+window.forceLogout()            // Force logout
 ```
 
-#### 2. JWT Token Structure
+## 🔧 Recent Fixes
 
-```typescript
-// Token payload:
-{
-  attestation_id: "uuid",
-  guest_id: "uuid", 
-  hotel_id: "uuid",
-  exp: timestamp, // 24 hours from creation
-  iat: timestamp  // creation time
-}
-```
+### Authentication Issues Resolved
 
-#### 3. Database Schema Integration
+- ✅ **Hooks Order**: Fixed React hooks violations
+- ✅ **Loading States**: Added timeout fallbacks and manual overrides
+- ✅ **Session Management**: Simplified auth state management
+- ✅ **Debug Tools**: Added comprehensive debugging helpers
 
-**Guests Table:**
-- Stores guest information (name, phone, DL, etc.)
-- Links to hotel via `hotel_id`
-- Created by staff via `created_by`
+### Verification Flow Fixed
 
-**Attestations Table:**
-- Links to guest via `guest_id`
-- Stores hashed verification code
-- Contains JWT token for guest link
-- Tracks SMS status and policy text
+- ✅ **Code Mismatch**: Fixed hash mismatch between generation and verification
+- ✅ **UI Loading**: Added timeout handling and error recovery
+- ✅ **Double Calls**: Prevented duplicate function calls
+- ✅ **Error Handling**: Enhanced error management throughout
 
-**Attestation Events Table:**
-- Logs all events (SMS sent, page opened, policy accepted)
-- Includes IP, geolocation, and timing data
-- Enables audit trail and analytics
-
-#### 4. Frontend Route Structure
+## 📁 Project Structure
 
 ```
 app/
-├── (protected)/          # Requires authentication
-│   └── dashboard/       # Staff dashboard
-└── (public)/            # No authentication required
-    └── guest/[token]/   # Guest attestation page
+├── layout.tsx              # Root layout with AuthProvider
+├── page.tsx                # Landing page
+├── (public)/               # Public routes (auth, guest)
+└── (protected)/            # Protected routes (dashboard)
+
+components/
+├── auth/                   # Authentication components
+├── checkin/               # Check-in and verification
+└── ui/                     # Reusable UI components
+
+lib/
+├── api.ts                  # API client functions
+├── supabaseClient.ts       # Supabase configuration
+└── validation.ts           # Form validation schemas
+
+supabase/
+├── functions/              # Edge functions
+└── migrations/             # Database migrations
+
+docs/                       # 📚 Centralized documentation
+├── README.md              # Main documentation
+├── authentication.md      # Auth system guide
+├── verification-flow.md    # Verification system guide
+├── debugging.md           # Debugging and troubleshooting
+└── development.md         # Development setup
 ```
 
-**Key Implementation Details:**
-- Public layout excludes `AuthProvider` to prevent auth interference
-- Guest page uses `decodeURIComponent()` for JWT token parsing
-- Error handling with user-friendly messages
-- Loading states for better UX
+## 🧪 Testing
 
-#### 5. Authentication State Management
+### Manual Testing Checklist
 
-**Problem Solved:**
-- Login modal was stuck in loading state
-- `isLoading` was used for both initial auth check and login operations
-- This caused UI conflicts and poor user experience
+- [ ] Authentication flow (login, logout, session persistence)
+- [ ] Guest check-in to verification
+- [ ] Error handling (invalid codes, network issues)
+- [ ] Incognito mode (should show landing page)
+- [ ] No hooks order errors
+- [ ] No infinite loading states
 
-**Solution Implemented:**
-```typescript
-// Separated concerns:
-const [isInitializing, setIsInitializing] = useState(true)  // Initial auth check
-const [isLoading, setIsLoading] = useState(false)        // Login/signup operations
+### Automated Testing
 
-// Combined for UI:
-isLoading: isInitializing || isLoading
+```bash
+npm test                   # Run all tests
+npm run test:coverage      # Run with coverage
+npm run test:e2e          # End-to-end tests
 ```
 
-#### 6. Development vs Production Configuration
+## 🚀 Deployment
 
-**Development Mode (Current Setup):**
-```typescript
-// Mock SMS logging:
-console.log(`[DEV MODE] SMS would be sent to ${phone}:`);
-console.log(`[DEV MODE] Message: Your Verity attestation code is ready. Click here to verify: ${guestUrl}`);
-console.log(`[DEV MODE] Code: ${verificationCode}`);
+### Environment Variables
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+TWILIO_ACCOUNT_SID=your_twilio_sid
+TWILIO_AUTH_TOKEN=your_twilio_token
+TWILIO_PHONE_NUMBER=your_twilio_phone
 ```
 
-**Production Mode (Ready for Deployment):**
-```typescript
-// Real Twilio integration:
-const twilio = new Twilio(accountSid, authToken);
-await twilio.messages.create({
-  to: phoneE164,
-  from: messagingServiceSid,
-  body: `Your Verity attestation code is ready. Click here to verify: ${guestUrl}`
-});
-```
+### Production Checklist
 
-#### 7. Error Handling Strategy
+- [ ] Environment variables configured
+- [ ] Supabase edge functions deployed
+- [ ] Database migrations applied
+- [ ] Twilio credentials set
+- [ ] Error monitoring configured
 
-**Client-Side:**
-- Form validation before submission
-- Loading states during API calls
-- User-friendly error messages
-- Retry mechanisms for network errors
+## 🆘 Troubleshooting
 
-**Server-Side:**
-- JWT token validation
-- Input sanitization
-- Rate limiting
-- Comprehensive logging
-- Graceful error responses
+### Quick Fixes
 
-#### 8. Security Considerations
+1. **Authentication issues**: Use `window.nuclearAuthClear()` in console
+2. **Infinite loading**: Click "Force Show Landing Page" button
+3. **Hooks errors**: Check hooks are called before conditional returns
+4. **Code verification**: Test with `117001` (test code)
 
-**JWT Security:**
-- Tokens signed with secret key
-- 24-hour expiration
-- No sensitive data in payload
-- Proper URL encoding/decoding
+### Getting Help
 
-**Database Security:**
-- Row-level security policies
-- Input validation and sanitization
-- Audit logging for all operations
-- Secure credential storage
+1. **Check documentation**: Review [`docs/`](./docs/) directory
+2. **Use debug tools**: Browser console helpers
+3. **Check console logs**: Look for error messages
+4. **Test in incognito**: Verify clean state
 
-**Network Security:**
-- HTTPS enforcement
-- CORS configuration
-- Rate limiting on API endpoints
-- Secure error messages
+## 📄 License
 
-### 🚀 Deployment Checklist
+[Add your license information here]
 
-#### Prerequisites:
-- [ ] Supabase project created and configured
-- [ ] Database schema deployed
-- [ ] Edge functions deployed
-- [ ] Environment variables set
-- [ ] Twilio account configured (for production)
-
-#### Development Testing:
-- [ ] Staff can create attestations
-- [ ] Guest links work correctly
-- [ ] JWT tokens validate properly
-- [ ] Database records created
-- [ ] Error handling works
-
-#### Production Deployment:
-- [ ] Twilio secrets configured
-- [ ] Production URLs set
-- [ ] Rate limiting enabled
-- [ ] Monitoring configured
-- [ ] Backup procedures in place
-
-## Support
-
-For issues or questions:
-
-1. Check the [DOCS.md](./DOCS.md) for detailed documentation
-2. Review Supabase logs for backend errors
-3. Check Twilio logs for SMS issues
-4. Open an issue in the repository
-
-## License
-
-MIT License - See LICENSE file for details
-
-## Contributing
+## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Submit a pull request
+4. Add tests if applicable
+5. Update documentation
+6. Submit a pull request
 
 ---
 
-Built with ❤️ for the hospitality industry
+**📚 For complete documentation, see the [`docs/`](./docs/) directory.**

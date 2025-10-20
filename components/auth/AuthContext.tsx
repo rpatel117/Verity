@@ -40,103 +40,121 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null)
   const [isInitializing, setIsInitializing] = useState(true)
+  
 
-  // Check for existing session on mount
+  // Simplified auth initialization
   useEffect(() => {
     let mounted = true
-    let isInitialized = false
-
-    const checkAuth = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession()
-        
-        if (!mounted || isInitialized) return
-
-        if (error) {
-          console.error('Auth check failed:', error)
-          setUser(null)
-        } else if (session?.user) {
-          // Get user profile from database
-          const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single()
-
-          if (!mounted || isInitialized) return
-
-          if (profileError) {
-            console.error('Profile fetch failed:', profileError)
-            setUser(null)
-          } else {
-            const userData: User = {
-              id: session.user.id,
-              email: session.user.email!,
-              name: profile.name,
-              hotelName: profile.hotel_name,
-              provider: 'email'
-            }
-            setUser(userData)
-          }
-        } else {
-          setUser(null)
-        }
-      } catch (error) {
-        console.error('Auth check failed:', error)
-        if (mounted && !isInitialized) {
-          setUser(null)
-        }
-      } finally {
-        if (mounted && !isInitialized) {
-          isInitialized = true
-          setIsInitializing(false)
-        }
-      }
-    }
-
-    checkAuth()
-
-    // Fallback timeout to ensure isInitializing is always set to false
+    
+    // Fallback timeout to prevent infinite initialization
     const timeoutId = setTimeout(() => {
-      if (mounted && !isInitialized) {
-        console.warn('Auth initialization timeout - forcing isInitializing to false')
-        isInitialized = true
+      if (mounted) {
+        console.log('⏰ Auth initialization timeout - forcing isInitializing to false')
         setIsInitializing(false)
       }
-    }, 5000) // 5 second timeout
+    }, 1000) // 1 second timeout
+    
+    // Force immediate check of session
+    const checkSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        console.log('🔍 Manual session check:', session)
+        if (!session) {
+          console.log('🔍 No session found - setting user to null and stopping initialization')
+          setUser(null)
+          setIsInitializing(false)
+        }
+      } catch (error) {
+        console.log('🔍 Session check error:', error)
+        setUser(null)
+        setIsInitializing(false)
+      }
+    }
+    
+    // Check session immediately
+    checkSession()
 
-    // Listen for auth changes (but don't interfere with initial check)
+    // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (!mounted || !isInitialized) return
+        if (!mounted) return
         
-        if (event === 'INITIAL_SESSION') {
-          // This event fires after the initial session check
-          // Don't do anything here as checkAuth() already handled it
-          return
-        }
+        console.log('🔄 Auth state change:', event, session?.user?.email)
+        console.log('🔄 Session exists:', !!session)
+        console.log('🔄 User exists:', !!session?.user)
+        console.log('🔄 Event type:', event)
+        console.log('🔄 Full session object:', session)
         
-        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
-          // Get user profile
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single()
+        // Handle all auth events
+        if (event === 'SIGNED_IN' && session?.user) {
+          try {
+            // Get user profile
+            const { data: profile, error: profileError } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', session.user.id)
+              .single()
 
-          if (profile) {
-            const userData: User = {
-              id: session.user.id,
-              email: session.user.email!,
-              name: profile.name,
-              hotelName: profile.hotel_name,
-              provider: 'email'
+            if (profileError) {
+              console.error('Profile fetch failed:', profileError)
+              setUser(null)
+            } else {
+              const userData: User = {
+                id: session.user.id,
+                email: session.user.email!,
+                name: profile.name,
+                hotelName: profile.hotel_name,
+                provider: 'email'
+              }
+              setUser(userData)
             }
-            setUser(userData)
+          } catch (error) {
+            console.error('Error fetching profile:', error)
+            setUser(null)
           }
         } else if (event === 'SIGNED_OUT') {
+          console.log('🔄 SIGNED_OUT - setting user to null')
+          setUser(null)
+        } else if (event === 'INITIAL_SESSION') {
+          console.log('🔄 INITIAL_SESSION - session:', !!session, 'user:', !!session?.user)
+          // Handle initial session - CRITICAL: Always set user to null if no session
+          if (session?.user) {
+            try {
+              const { data: profile } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', session.user.id)
+                .single()
+
+              if (profile) {
+                const userData: User = {
+                  id: session.user.id,
+                  email: session.user.email!,
+                  name: profile.name,
+                  hotelName: profile.hotel_name,
+                  provider: 'email'
+                }
+                setUser(userData)
+              } else {
+                setUser(null)
+              }
+            } catch (error) {
+              console.error('Error fetching initial profile:', error)
+              setUser(null)
+            }
+          } else {
+            console.log('🔄 INITIAL_SESSION - no session, setting user to null')
+            setUser(null)
+          }
+        } else {
+          // Handle any other events by setting user to null
+          console.log('🔄 Other event - setting user to null')
           setUser(null)
         }
+        
+        // Always set initializing to false after first auth state change
+        console.log('🔄 Setting isInitializing to false')
+        setIsInitializing(false)
       }
     )
 
@@ -239,6 +257,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         throw new Error(error.message)
       }
 
+      // Clear all auth-related localStorage
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('sb-rusqnjonwtgzcccyhjze-auth-token')
+        localStorage.removeItem('supabase.auth.token')
+        // Clear any other auth-related keys
+        Object.keys(localStorage).forEach(key => {
+          if (key.includes('supabase') || key.includes('auth')) {
+            localStorage.removeItem(key)
+          }
+        })
+      }
+
       setUser(null)
       toast.success('Successfully signed out!')
     } catch (error) {
@@ -295,6 +325,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     forgotPassword,
     resetPassword
   }
+
+  // Debug logging
+  console.log('🔍 AuthContext state:', { 
+    user: !!user, 
+    isAuthenticated: !!user, 
+    isInitializing,
+    userEmail: user?.email 
+  })
 
   return (
     <AuthContext.Provider value={value}>

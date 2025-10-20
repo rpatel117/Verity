@@ -31,8 +31,99 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: true,
     flowType: 'pkce',
     storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+    // Add debug logging for development
+    debug: process.env.NODE_ENV === 'development',
+    // Force clear any existing sessions on initialization
+    ...(typeof window !== 'undefined' && process.env.NODE_ENV === 'development' ? {
+      // In development, be more aggressive about clearing stale sessions
+      storage: {
+        getItem: (key: string) => {
+          const value = window.localStorage.getItem(key)
+          console.log('🔍 Storage getItem:', key, value ? 'exists' : 'null')
+          return value
+        },
+        setItem: (key: string, value: string) => {
+          console.log('🔍 Storage setItem:', key, 'length:', value.length)
+          window.localStorage.setItem(key, value)
+        },
+        removeItem: (key: string) => {
+          console.log('🔍 Storage removeItem:', key)
+          window.localStorage.removeItem(key)
+        }
+      }
+    } : {})
   },
 })
+
+// Development helper: Clear auth state if needed
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+  
+  // Add a global function to clear auth state for debugging
+  (window as any).clearAuthState = async () => {
+    console.log('🧹 Clearing auth state...')
+    await supabase.auth.signOut()
+    
+    // Clear all localStorage
+    localStorage.clear()
+    
+    // Clear sessionStorage
+    sessionStorage.clear()
+    
+    // Clear cookies
+    document.cookie.split(";").forEach((c) => {
+      document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+    });
+    
+    console.log('🧹 Auth state cleared, reloading...')
+    window.location.href = '/'
+  }
+  
+  // Add a function to check current auth state
+  (window as any).checkAuthState = async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    console.log('🔍 Current auth state:', session)
+    console.log('🔍 localStorage keys:', Object.keys(localStorage))
+    console.log('🔍 sessionStorage keys:', Object.keys(sessionStorage))
+    return session
+  }
+  
+  // Add a function to force logout and redirect
+  (window as any).forceLogout = async () => {
+    console.log('🚪 Force logout...')
+    await supabase.auth.signOut()
+    localStorage.clear()
+    sessionStorage.clear()
+    window.location.href = '/'
+  }
+  
+  // Add a function to completely clear all auth data
+  (window as any).nuclearAuthClear = async () => {
+    console.log('💥 NUCLEAR AUTH CLEAR - Removing ALL auth data...')
+    
+    // Sign out from Supabase
+    await supabase.auth.signOut()
+    
+    // Clear all storage
+    localStorage.clear()
+    sessionStorage.clear()
+    
+    // Clear all cookies
+    document.cookie.split(";").forEach((c) => {
+      document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+    });
+    
+    // Clear any remaining auth-related keys
+    Object.keys(localStorage).forEach(key => {
+      if (key.includes('supabase') || key.includes('auth') || key.includes('sb-')) {
+        localStorage.removeItem(key)
+      }
+    })
+    
+    // Force reload
+    console.log('💥 Nuclear clear complete, reloading...')
+    window.location.reload()
+  }
+}
 
 /**
  * Database Types
