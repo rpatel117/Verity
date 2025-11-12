@@ -87,13 +87,16 @@ function AuthPageContent() {
   }
 
   const handleLogin = async (data: any) => {
+    console.log('🔐 handleLogin called with data:', data)
     setError('')
     setIsSubmitting(true)
     try {
+      console.log('🔐 Calling login function...')
       await login(data.email, data.password)
+      console.log('🔐 Login successful, redirecting...')
       router.push('/dashboard')
     } catch (error) {
-      console.error('Login error:', error)
+      console.error('🔐 Login error:', error)
       setError('Login failed. Please check your credentials.')
     } finally {
       setIsSubmitting(false)
@@ -210,7 +213,23 @@ function AuthPageContent() {
               </CardHeader>
               <CardContent>
                 <Form {...loginForm}>
-                  <form onSubmit={loginForm.handleSubmit(handleLogin)} className="space-y-4">
+                  <form 
+                    onSubmit={(e) => {
+                      console.log('🔐 Form submit event fired')
+                      e.preventDefault()
+                      loginForm.handleSubmit(
+                        (data) => {
+                          console.log('🔐 Form validation passed, calling handleLogin')
+                          handleLogin(data)
+                        },
+                        (errors) => {
+                          console.error('🔐 Form validation failed:', errors)
+                          setError('Please check your email and password.')
+                        }
+                      )()
+                    }} 
+                    className="space-y-4"
+                  >
                     <FormField
                       control={loginForm.control}
                       name="email"
@@ -266,6 +285,17 @@ function AuthPageContent() {
                       type="submit"
                       className="w-full"
                       disabled={isSubmitting}
+                      onClick={(e) => {
+                        console.log('🔐 Sign In button clicked, isSubmitting:', isSubmitting)
+                        // Don't prevent default - let form handle it
+                        // But log for debugging
+                        const form = e.currentTarget.closest('form')
+                        if (form) {
+                          console.log('🔐 Form found, checking validity...')
+                          // Trigger validation manually if needed
+                          loginForm.trigger()
+                        }
+                      }}
                     >
                       {isSubmitting ? (
                         <motion.div
