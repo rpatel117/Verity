@@ -3,7 +3,26 @@ module.exports = {
   darkMode: ["class"],
   content: ["./app/**/*.{js,jsx,ts,tsx}", "./components/**/*.{js,jsx,ts,tsx}", "*.{js,ts,jsx,tsx,mdx}"],
   theme: {
+    container: {
+      center: true,
+      padding: {
+        DEFAULT: '1rem',
+        sm: '1.5rem',
+        lg: '2rem',
+      },
+    },
     extend: {
+      screens: {
+        xs: '380px', // Optional micro-breakpoint for very small devices
+      },
+      maxWidth: {
+        'content': '72rem', // Dashboard content ~1152px
+        '7xl': '80rem',
+      },
+      spacing: {
+        '4.5': '1.125rem', // Finer gap control
+        '18': '4.5rem',
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",

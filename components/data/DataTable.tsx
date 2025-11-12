@@ -24,6 +24,13 @@ import {
   Copy, 
   Loader2 
 } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 interface AttestationRow {
   id: string
@@ -128,18 +135,20 @@ export function DataTable({ data = [], loading = false, onSelectionChange, onLoa
       )}
 
       {/* Compact Table */}
-      <div className="rounded-md border border-gray-200 overflow-hidden">
-        <Table>
+      <div className="-mx-4 sm:mx-0 overflow-x-auto">
+        <div className="inline-block min-w-full align-middle">
+          <div className="overflow-hidden rounded-md border border-gray-200">
+            <Table>
           <TableHeader>
             <TableRow className="bg-gray-50">
               <TableHead className="text-xs font-medium text-gray-600 py-2 px-3">Guest</TableHead>
-              <TableHead className="text-xs font-medium text-gray-600 py-2 px-3">Phone</TableHead>
-              <TableHead className="text-xs font-medium text-gray-600 py-2 px-3">CC</TableHead>
-              <TableHead className="text-xs font-medium text-gray-600 py-2 px-3">Check-in</TableHead>
-              <TableHead className="text-xs font-medium text-gray-600 py-2 px-3">Check-out</TableHead>
+              <TableHead className="text-xs font-medium text-gray-600 py-2 px-3 hidden sm:table-cell">Phone</TableHead>
+              <TableHead className="text-xs font-medium text-gray-600 py-2 px-3 hidden md:table-cell">CC</TableHead>
+              <TableHead className="text-xs font-medium text-gray-600 py-2 px-3 hidden md:table-cell">Check-in</TableHead>
+              <TableHead className="text-xs font-medium text-gray-600 py-2 px-3 hidden lg:table-cell">Check-out</TableHead>
               <TableHead className="text-xs font-medium text-gray-600 py-2 px-3">Status</TableHead>
-              <TableHead className="text-xs font-medium text-gray-600 py-2 px-3">Sent</TableHead>
-              <TableHead className="text-xs font-medium text-gray-600 py-2 px-3">Events</TableHead>
+              <TableHead className="text-xs font-medium text-gray-600 py-2 px-3 hidden md:table-cell">Sent</TableHead>
+              <TableHead className="text-xs font-medium text-gray-600 py-2 px-3 hidden lg:table-cell">Events</TableHead>
               <TableHead className="text-xs font-medium text-gray-600 py-2 px-3">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -150,48 +159,67 @@ export function DataTable({ data = [], loading = false, onSelectionChange, onLoa
                   <TableCell className="py-2 px-3 text-sm font-medium text-gray-900">
                     {row.guest.fullName}
                   </TableCell>
-                  <TableCell className="py-2 px-3 text-sm text-gray-600">
+                  <TableCell className="py-2 px-3 text-sm text-gray-600 hidden sm:table-cell">
                     {row.guest.phoneE164}
                   </TableCell>
-                  <TableCell className="py-2 px-3 text-sm font-mono text-gray-600">
+                  <TableCell className="py-2 px-3 text-sm font-mono text-gray-600 hidden md:table-cell">
                     ****{row.ccLast4}
                   </TableCell>
-                  <TableCell className="py-2 px-3 text-sm text-gray-600">
+                  <TableCell className="py-2 px-3 text-sm text-gray-600 hidden md:table-cell">
                     {formatDate(row.checkInDate)}
                   </TableCell>
-                  <TableCell className="py-2 px-3 text-sm text-gray-600">
+                  <TableCell className="py-2 px-3 text-sm text-gray-600 hidden lg:table-cell">
                     {formatDate(row.checkOutDate)}
                   </TableCell>
                   <TableCell className="py-2 px-3">
                     {getStatusBadge(row.status)}
                   </TableCell>
-                  <TableCell className="py-2 px-3 text-sm text-gray-600">
+                  <TableCell className="py-2 px-3 text-sm text-gray-600 hidden md:table-cell">
                     {formatDate(row.sentAt)}
                   </TableCell>
-                  <TableCell className="py-2 px-3 text-sm text-gray-600">
+                  <TableCell className="py-2 px-3 text-sm text-gray-600 hidden lg:table-cell">
                     {row.eventsCount}
                   </TableCell>
                   <TableCell className="py-2 px-3">
                     <div className="flex items-center space-x-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleAddToReport(row.id)}
-                        className="h-7 w-7 p-0 hover:bg-blue-50"
-                      >
-                        <Plus className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleCopyId(row.id)}
-                        className="h-7 w-7 p-0 hover:bg-gray-50"
-                      >
-                        <Copy className="h-3 w-3" />
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-gray-50">
-                        <MoreHorizontal className="h-3 w-3" />
-                      </Button>
+                      {/* Desktop: show all buttons */}
+                      <div className="hidden md:flex space-x-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleAddToReport(row.id)}
+                          className="h-7 w-7 p-0 hover:bg-blue-50"
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleCopyId(row.id)}
+                          className="h-7 w-7 p-0 hover:bg-gray-50"
+                        >
+                          <Copy className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      {/* Mobile: kebab menu */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-gray-50 md:hidden">
+                            <MoreHorizontal className="h-3 w-3" />
+                            <span className="sr-only">Open menu</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleAddToReport(row.id)}>
+                            <Plus className="mr-2 h-4 w-4" />
+                            Add to Report
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleCopyId(row.id)}>
+                            <Copy className="mr-2 h-4 w-4" />
+                            Copy ID
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -205,6 +233,8 @@ export function DataTable({ data = [], loading = false, onSelectionChange, onLoa
             )}
           </TableBody>
         </Table>
+          </div>
+        </div>
       </div>
 
       {/* Load More / Pagination */}

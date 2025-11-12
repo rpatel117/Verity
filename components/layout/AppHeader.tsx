@@ -21,6 +21,7 @@ import { Badge } from '@/components/ui/badge'
 import { motion } from 'framer-motion'
 import { fadeInUp } from '@/lib/motion'
 import { User, LogOut, FileText, Settings, Bell } from 'lucide-react'
+import { MobileNavDrawer } from './MobileNavDrawer'
 
 export function AppHeader() {
   const { user, logout } = useAuth()
@@ -45,30 +46,33 @@ export function AppHeader() {
 
   return (
     <motion.header 
-      className="sticky top-0 z-30 glass-header"
+      className="sticky top-0 z-40 glass-header"
       variants={fadeInUp}
       initial="initial"
       animate="animate"
     >
-      <div className="max-w-[1200px] mx-auto px-6">
-        <div className="flex justify-between items-center h-16">
+      <div className="max-w-[1200px] mx-auto px-4 sm:px-6">
+        <div className="flex justify-between items-center h-14 sm:h-16">
+          {/* Hamburger (mobile only) */}
+          <MobileNavDrawer />
+          
           {/* Page Title */}
           <motion.div 
             className="flex items-center"
             variants={fadeInUp}
           >
-            <h1 className="text-lg font-heading font-semibold text-foreground">
+            <h1 className="text-base sm:text-lg font-heading font-semibold text-foreground">
               Dashboard
             </h1>
           </motion.div>
 
           {/* Quick Actions */}
           <motion.div 
-            className="flex items-center space-x-3"
+            className="flex items-center space-x-2 sm:space-x-3"
             variants={fadeInUp}
           >
             {/* Notifications */}
-            <Button variant="ghost" size="icon" className="relative">
+            <Button variant="ghost" size="icon" className="relative hidden sm:flex">
               <Bell className="h-4 w-4" />
               <span className="absolute -top-1 -right-1 h-3 w-3 bg-accent rounded-full"></span>
             </Button>
@@ -77,10 +81,12 @@ export function AppHeader() {
             <Button
               onClick={handleGenerateReport}
               variant="gradient"
-              className="flex items-center space-x-2"
+              className="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm"
+              size="sm"
             >
-              <FileText className="h-4 w-4" />
-              <span>Generate Report</span>
+              <FileText className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Generate Report</span>
+              <span className="sm:hidden">Report</span>
             </Button>
 
             {/* User Menu */}

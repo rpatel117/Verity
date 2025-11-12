@@ -59,7 +59,7 @@ export function Filters({ filters, onFiltersChange }: FiltersProps) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Search */}
           <div className="space-y-2">
             <Label htmlFor="search">Search</Label>
@@ -70,7 +70,7 @@ export function Filters({ filters, onFiltersChange }: FiltersProps) {
                 placeholder="Name, phone, or last 4..."
                 value={filters.query}
                 onChange={(e) => handleFilterChange('query', e.target.value)}
-                className="pl-10"
+                className="w-full pl-10"
               />
             </div>
           </div>
@@ -102,6 +102,7 @@ export function Filters({ filters, onFiltersChange }: FiltersProps) {
               type="date"
               value={filters.from}
               onChange={(e) => handleFilterChange('from', e.target.value)}
+              className="w-full"
             />
           </div>
 
@@ -113,6 +114,7 @@ export function Filters({ filters, onFiltersChange }: FiltersProps) {
               type="date"
               value={filters.to}
               onChange={(e) => handleFilterChange('to', e.target.value)}
+              className="w-full"
             />
           </div>
         </div>

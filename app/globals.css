@@ -94,6 +94,9 @@
     --font-heading: 'DM Sans', sans-serif;
     --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;
     
+    /* Container spacing */
+    --container-gutter: 1rem; /* Mobile */
+    
     /* Accessibility */
     --focus-ring: 2px solid var(--primary-500);
     --focus-ring-offset: 2px;
@@ -151,6 +154,18 @@
     --destructive-foreground: 0 0% 98%;
     --ring: 214 100% 50%;
     --radius: 8px;
+  }
+
+  @media (min-width: 640px) {
+    :root {
+      --container-gutter: 1.5rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    :root {
+      --container-gutter: 2rem;
+    }
   }
 
   .dark {

@@ -20,6 +20,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2, Send, Calendar, User, Phone, CreditCard, FileText, CheckCircle } from 'lucide-react'
 import { POLICY_TEXT } from '@/lib/constants'
+import { normalizePhoneToE164 } from '@/lib/utils'
 
 interface CheckInFormProps {
   onSmsSent?: () => void
@@ -89,13 +90,13 @@ export function CheckInForm({ onSmsSent }: CheckInFormProps) {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="w-full max-w-4xl mx-auto px-4 sm:px-6">
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 sm:space-y-6">
           {/* Compact Two Column Layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
             {/* Guest Details - Left Column */}
-            <Card className="p-4">
+            <Card className="p-4 sm:p-6">
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg flex items-center">
                   <User className="mr-2 h-4 w-4" />
@@ -110,9 +111,9 @@ export function CheckInForm({ onSmsSent }: CheckInFormProps) {
                     <FormItem>
                       <FormLabel className="text-sm font-medium">Full Name</FormLabel>
                       <FormControl>
-                        <Input placeholder="Enter guest's full name" {...field} />
+                        <Input placeholder="Enter guest's full name" className="w-full" {...field} />
                       </FormControl>
-                      <FormMessage />
+                      <FormMessage className="break-words text-xs sm:text-sm" />
                     </FormItem>
                   )}
                 />
@@ -126,10 +127,20 @@ export function CheckInForm({ onSmsSent }: CheckInFormProps) {
                       <FormControl>
                         <div className="relative">
                           <Phone className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-                          <Input placeholder="+1234567890" className="pl-10" {...field} />
+                          <Input 
+                            placeholder="(123) 456-7890 or +1234567890" 
+                            className="w-full pl-10" 
+                            {...field}
+                            onBlur={(e) => {
+                              const normalized = normalizePhoneToE164(e.target.value)
+                              if (normalized) {
+                                field.onChange(normalized)
+                              }
+                            }}
+                          />
                         </div>
                       </FormControl>
-                      <FormMessage />
+                      <FormMessage className="break-words text-xs sm:text-sm" />
                     </FormItem>
                   )}
                 />
@@ -142,9 +153,9 @@ export function CheckInForm({ onSmsSent }: CheckInFormProps) {
                       <FormItem>
                         <FormLabel className="text-sm font-medium">License #</FormLabel>
                         <FormControl>
-                          <Input placeholder="D1234567" {...field} />
+                          <Input placeholder="D1234567" className="w-full" {...field} />
                         </FormControl>
-                        <FormMessage />
+                        <FormMessage className="break-words text-xs sm:text-sm" />
                       </FormItem>
                     )}
                   />
@@ -156,9 +167,9 @@ export function CheckInForm({ onSmsSent }: CheckInFormProps) {
                       <FormItem>
                         <FormLabel className="text-sm font-medium">State</FormLabel>
                         <FormControl>
-                          <Input placeholder="CA" {...field} />
+                          <Input placeholder="CA" className="w-full" {...field} />
                         </FormControl>
-                        <FormMessage />
+                        <FormMessage className="break-words text-xs sm:text-sm" />
                       </FormItem>
                     )}
                   />
@@ -167,7 +178,7 @@ export function CheckInForm({ onSmsSent }: CheckInFormProps) {
             </Card>
 
             {/* Stay Details - Right Column */}
-            <Card className="p-4">
+            <Card className="p-4 sm:p-6">
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg flex items-center">
                   <CreditCard className="mr-2 h-4 w-4" />
@@ -182,9 +193,9 @@ export function CheckInForm({ onSmsSent }: CheckInFormProps) {
                     <FormItem>
                       <FormLabel className="text-sm font-medium">Credit Card Last 4</FormLabel>
                       <FormControl>
-                        <Input placeholder="1234" maxLength={4} {...field} />
+                        <Input placeholder="1234" maxLength={4} className="w-full" {...field} />
                       </FormControl>
-                      <FormMessage />
+                      <FormMessage className="break-words text-xs sm:text-sm" />
                     </FormItem>
                   )}
                 />
@@ -201,14 +212,14 @@ export function CheckInForm({ onSmsSent }: CheckInFormProps) {
                             <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
                             <Input
                               type="date"
-                              className="pl-10"
+                              className="w-full pl-10"
                               {...field}
                               value={field.value ? field.value.toISOString().split('T')[0] : ''}
                               onChange={(e) => field.onChange(new Date(e.target.value))}
                             />
                           </div>
                         </FormControl>
-                        <FormMessage />
+                        <FormMessage className="break-words text-xs sm:text-sm" />
                       </FormItem>
                     )}
                   />
@@ -224,14 +235,14 @@ export function CheckInForm({ onSmsSent }: CheckInFormProps) {
                             <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
                             <Input
                               type="date"
-                              className="pl-10"
+                              className="w-full pl-10"
                               {...field}
                               value={field.value ? field.value.toISOString().split('T')[0] : ''}
                               onChange={(e) => field.onChange(new Date(e.target.value))}
                             />
                           </div>
                         </FormControl>
-                        <FormMessage />
+                        <FormMessage className="break-words text-xs sm:text-sm" />
                       </FormItem>
                     )}
                   />
@@ -241,7 +252,7 @@ export function CheckInForm({ onSmsSent }: CheckInFormProps) {
           </div>
 
           {/* Policy Text - Compact */}
-          <Card className="p-4">
+          <Card className="p-4 sm:p-6">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center">
                 <FileText className="mr-2 h-4 w-4" />
@@ -260,11 +271,11 @@ export function CheckInForm({ onSmsSent }: CheckInFormProps) {
                     <FormControl>
                       <Textarea
                         placeholder="Enter policy text..."
-                        className="min-h-[80px] text-sm"
+                        className="w-full min-h-[80px] text-sm"
                         {...field}
                       />
                     </FormControl>
-                    <FormMessage />
+                    <FormMessage className="break-words text-xs sm:text-sm" />
                   </FormItem>
                 )}
               />
@@ -289,11 +300,11 @@ export function CheckInForm({ onSmsSent }: CheckInFormProps) {
           )}
 
           {/* Submit Button */}
-          <div className="flex justify-end pt-2">
+          <div className="flex justify-end pt-2 sm:pt-4">
             <Button
               type="submit"
               disabled={isSubmitting}
-              className="px-6"
+              className="w-full sm:w-auto px-6"
             >
               {isSubmitting ? (
                 <>

@@ -22,12 +22,12 @@ export default function DashboardLayout({
         <AppSidebar />
         
         {/* Main Content Area */}
-        <div className="ml-60 lg:ml-60 md:ml-0">
+        <div className="lg:ml-60">
           {/* Floating Header */}
           <AppHeader />
           
           {/* Content */}
-          <main className="max-w-[1200px] mx-auto px-6 py-8">
+          <main className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-6 py-4 sm:py-6 lg:py-8 min-w-0">
             {children}
           </main>
         </div>
