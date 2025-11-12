@@ -285,6 +285,20 @@ export default function GuestPage() {
         return
       }
 
+      // Use the code from guest_confirm response (already returned by edge function)
+      // No need to query database again - this prevents timeout and RLS issues
+      const code = data?.code || data?.code_enc
+      
+      if (!code) {
+        console.error('No code in guest_confirm response:', data)
+        setState({
+          status: 'error',
+          policyText: POLICY_TEXT,
+          error: 'Verification code not available'
+        })
+        return
+      }
+
       // Log policy acceptance event (fire-and-forget, non-blocking)
       supabase.functions.invoke('guest_event', {
         body: {
@@ -297,27 +311,11 @@ export default function GuestPage() {
         console.log('Failed to log policy acceptance event:', logError)
       })
 
-      // Retrieve the verification code directly from the database
-      const { data: attestationData, error: attestationError } = await supabase
-        .from('attestations')
-        .select('code_enc')
-        .eq('token', token)
-        .single()
-
-      if (attestationError || !attestationData?.code_enc) {
-        console.error('Failed to retrieve verification code:', attestationError)
-        setState({
-          status: 'error',
-          policyText: POLICY_TEXT,
-          error: 'Failed to retrieve verification code'
-        })
-        return
-      }
-
+      // Set success state with code from response
       setState({
         status: 'success',
         policyText: POLICY_TEXT,
-        code: attestationData.code_enc
+        code: code
       })
     } catch (error) {
       console.error('Confirmation failed:', error)
