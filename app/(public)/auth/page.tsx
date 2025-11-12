@@ -69,8 +69,21 @@ function AuthPageContent() {
     },
   })
 
-  // Show loading while checking auth
-  if (isInitializing) {
+  // Show loading while checking auth (but with timeout to prevent infinite loading)
+  const [authCheckTimeout, setAuthCheckTimeout] = useState(false)
+  
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (isInitializing) {
+        console.log('⚠️ Auth initialization taking too long, allowing form to render')
+        setAuthCheckTimeout(true)
+      }
+    }, 2000) // 2 second timeout
+    
+    return () => clearTimeout(timeout)
+  }, [isInitializing])
+  
+  if (isInitializing && !authCheckTimeout) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
