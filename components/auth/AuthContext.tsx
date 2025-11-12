@@ -46,6 +46,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     let mounted = true
     
+    // Skip auth initialization on guest pages (public routes that don't need auth)
+    if (typeof window !== 'undefined') {
+      const pathname = window.location.pathname
+      if (pathname.startsWith('/guest/')) {
+        console.log('🔍 Guest page detected - skipping auth initialization')
+        setUser(null)
+        setIsInitializing(false)
+        return
+      }
+    }
+    
     // Fallback timeout to prevent infinite initialization
     const timeoutId = setTimeout(() => {
       if (mounted) {

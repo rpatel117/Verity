@@ -115,11 +115,9 @@ export default function GuestPage() {
         const locationPromise = captureLocation()
 
         // Call the guest_init edge function FIRST with timeout
-        // Use anonymous Supabase client for guest pages with fallback values
-        const { createClient } = await import('@supabase/supabase-js')
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://rusqnjonwtgzcccyhjze.supabase.co'
-        const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1c3Fuam9ud3RnemNjY3loanplIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0NTE3MDksImV4cCI6MjA3NjAyNzcwOX0.cIcjqiy-o4iMsj-h1URkJhKZr0k2WJpyrWUkdLZxBMM'
-        const supabase = createClient(supabaseUrl, supabaseAnonKey)
+        // Use guest-specific Supabase client that doesn't conflict with AuthContext
+        const { supabaseGuest } = await import('@/lib/supabaseGuestClient')
+        const supabase = supabaseGuest
         
         // Add timeout to guest_init call using Promise.race
         const guestInitPromise = supabase.functions.invoke('guest_init', {
@@ -235,11 +233,9 @@ export default function GuestPage() {
 
   const handleContinue = async () => {
     try {
-      // Call the guest_confirm edge function using anonymous client with fallback values
-      const { createClient } = await import('@supabase/supabase-js')
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://rusqnjonwtgzcccyhjze.supabase.co'
-      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1c3Fuam9ud3RnemNjY3loanplIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0NTE3MDksImV4cCI6MjA3NjAyNzcwOX0.cIcjqiy-o4iMsj-h1URkJhKZr0k2WJpyrWUkdLZxBMM'
-      const supabase = createClient(supabaseUrl, supabaseAnonKey)
+      // Call the guest_confirm edge function using guest-specific client
+      const { supabaseGuest } = await import('@/lib/supabaseGuestClient')
+      const supabase = supabaseGuest
       
       // Add timeout to guest_confirm call
       const confirmPromise = supabase.functions.invoke('guest_confirm', {
