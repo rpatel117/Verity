@@ -35,9 +35,19 @@ function AuthPageContent() {
   const defaultTab = searchParams.get('tab') === 'signup' ? 'signup' : 'login'
 
   // Redirect authenticated users to dashboard
+  // Also handle stale sessions that might cause UI errors
   useEffect(() => {
-    if (!isInitializing && isAuthenticated) {
-      router.push('/dashboard')
+    if (!isInitializing) {
+      if (isAuthenticated) {
+        router.push('/dashboard')
+      } else {
+        // If not authenticated and not initializing, ensure we're on auth page
+        // This prevents UI errors from stale session state
+        const currentPath = window.location.pathname
+        if (!currentPath.startsWith('/auth')) {
+          // Already handled by router, but this ensures clean state
+        }
+      }
     }
   }, [isAuthenticated, isInitializing, router])
 

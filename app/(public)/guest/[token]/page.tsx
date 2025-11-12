@@ -39,6 +39,7 @@ export default function GuestPage() {
   const [accepted, setAccepted] = useState(false)
   const [copied, setCopied] = useState(false)
   const initializedRef = useRef(false)
+  const isInitializingRef = useRef(true)
 
   useEffect(() => {
     // Prevent multiple initializations
@@ -48,6 +49,8 @@ export default function GuestPage() {
     
     const initializeGuest = async () => {
       initializedRef.current = true
+      isInitializingRef.current = true
+      
       try {
         console.log('Initializing guest with token:', token)
         console.log('Token length:', token?.length)
@@ -56,6 +59,7 @@ export default function GuestPage() {
         // Check if token looks like a JWT (has dots)
         if (!token || typeof token !== 'string' || !token.includes('.')) {
           console.error('Invalid token format:', token)
+          isInitializingRef.current = false
           setState({
             status: 'error',
             policyText: POLICY_TEXT,
@@ -64,41 +68,36 @@ export default function GuestPage() {
           return
         }
 
-        // Capture IP address and geolocation with timeout
+        // Capture IP address and geolocation with timeout (non-blocking)
         const captureLocation = async () => {
           try {
-            // Get IP address with timeout
+            // Get IP address with shorter timeout
             const ipPromise = fetch('https://api.ipify.org?format=json', { 
-              signal: AbortSignal.timeout(5000) // 5 second timeout
+              signal: AbortSignal.timeout(3000) // Reduced to 3s
             })
             const ipResponse = await ipPromise
             const ipData = await ipResponse.json()
             const ip = ipData.ip
 
-            // Get geolocation with timeout
+            // Get geolocation with shorter timeout and immediate rejection on deny
             let latitude, longitude, accuracy
             if (navigator.geolocation) {
-              const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-                const timeoutId = setTimeout(() => {
-                  reject(new Error('Geolocation timeout'))
-                }, 5000) // 5 second timeout
-                
-                navigator.geolocation.getCurrentPosition(
-                  (pos) => {
-                    clearTimeout(timeoutId)
-                    resolve(pos)
-                  },
-                  (err) => {
-                    clearTimeout(timeoutId)
-                    reject(err)
-                  },
-                  {
-                    enableHighAccuracy: false, // Faster, less accurate
-                    timeout: 5000,
-                    maximumAge: 300000 // 5 minutes
-                  }
+              const position = await Promise.race([
+                new Promise<GeolocationPosition>((resolve, reject) => {
+                  navigator.geolocation.getCurrentPosition(
+                    resolve,
+                    reject, // Immediately reject if user denies
+                    {
+                      enableHighAccuracy: false,
+                      timeout: 3000, // Reduced to 3s
+                      maximumAge: 300000 // 5 minutes
+                    }
+                  )
+                }),
+                new Promise<never>((_, reject) => 
+                  setTimeout(() => reject(new Error('Geolocation timeout')), 3000)
                 )
-              })
+              ])
               latitude = position.coords.latitude
               longitude = position.coords.longitude
               accuracy = position.coords.accuracy
@@ -106,26 +105,53 @@ export default function GuestPage() {
 
             return { ip, latitude, longitude, accuracy }
           } catch (error) {
+            // Fail silently - location is optional
             console.log('Location capture failed:', error)
             return { ip: null, latitude: null, longitude: null, accuracy: null }
           }
         }
 
-        const locationData = await captureLocation()
+        // Start location capture in parallel (don't await yet)
+        const locationPromise = captureLocation()
 
-        // Call the guest_init edge function to validate the token
+        // Call the guest_init edge function FIRST with timeout
         // Use anonymous Supabase client for guest pages with fallback values
         const { createClient } = await import('@supabase/supabase-js')
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://rusqnjonwtgzcccyhjze.supabase.co'
         const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1c3Fuam9ud3RnemNjY3loanplIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0NTE3MDksImV4cCI6MjA3NjAyNzcwOX0.cIcjqiy-o4iMsj-h1URkJhKZr0k2WJpyrWUkdLZxBMM'
         const supabase = createClient(supabaseUrl, supabaseAnonKey)
-        const { data, error } = await supabase.functions.invoke('guest_init', {
+        
+        // Add timeout to guest_init call using Promise.race
+        const guestInitPromise = supabase.functions.invoke('guest_init', {
           body: { token }
         })
+        
+        const timeoutPromise = new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Request timeout')), 10000) // 10 second timeout
+        )
+        
+        let data, error
+        try {
+          const result = await Promise.race([guestInitPromise, timeoutPromise]) as { data: any, error: any }
+          data = result.data
+          error = result.error
+        } catch (timeoutError) {
+          if (timeoutError instanceof Error && timeoutError.message === 'Request timeout') {
+            isInitializingRef.current = false
+            setState({
+              status: 'error',
+              policyText: POLICY_TEXT,
+              error: 'Request timed out. Please try again.'
+            })
+            return
+          }
+          throw timeoutError
+        }
 
         console.log('Guest init response:', { data, error })
 
         if (error || !data?.valid) {
+          isInitializingRef.current = false
           setState({
             status: 'error',
             policyText: POLICY_TEXT,
@@ -134,9 +160,17 @@ export default function GuestPage() {
           return
         }
 
-        // Log page open event with location data
-        try {
-          await supabase.functions.invoke('guest_event', {
+        // Show policy immediately (don't wait for location)
+        isInitializingRef.current = false
+        setState({
+          status: 'policy',
+          policyText: data.policyText || POLICY_TEXT
+        })
+
+        // Log page open event in background (fire-and-forget, non-blocking)
+        locationPromise.then(locationData => {
+          // Log event asynchronously, don't block UI
+          supabase.functions.invoke('guest_event', {
             body: {
               token,
               eventType: 'page.open',
@@ -146,38 +180,53 @@ export default function GuestPage() {
               longitude: locationData.longitude,
               accuracy: locationData.accuracy
             }
+          }).catch(err => {
+            console.log('Failed to log page open event:', err)
           })
-        } catch (logError) {
-          console.log('Failed to log page open event:', logError)
-        }
-
-        setState({
-          status: 'policy',
-          policyText: data.policyText || POLICY_TEXT
+        }).catch(err => {
+          console.log('Location capture failed, logging event without location:', err)
+          // Still try to log event without location data
+          supabase.functions.invoke('guest_event', {
+            body: {
+              token,
+              eventType: 'page.open',
+              ip: null,
+              userAgent: navigator.userAgent,
+              latitude: null,
+              longitude: null,
+              accuracy: null
+            }
+          }).catch(logErr => {
+            console.log('Failed to log page open event:', logErr)
+          })
         })
       } catch (error) {
         console.error('Guest initialization failed:', error)
+        isInitializingRef.current = false
         setState({
           status: 'error',
           policyText: POLICY_TEXT,
-          error: 'Failed to load attestation page'
+          error: error instanceof Error && error.message === 'Request timeout' 
+            ? 'Request timed out. Please try again.'
+            : 'Failed to load attestation page'
         })
       }
     }
 
     initializeGuest()
     
-    // Fallback timeout to prevent infinite loading
+    // Fallback timeout to prevent infinite loading (using ref instead of state)
     const timeoutId = setTimeout(() => {
-      if (state.status === 'loading') {
+      if (isInitializingRef.current) {
         console.warn('Guest initialization timeout - forcing error state')
+        isInitializingRef.current = false
         setState({
           status: 'error',
           policyText: POLICY_TEXT,
           error: 'Page load timeout. Please refresh and try again.'
         })
       }
-    }, 15000) // 15 second timeout
+    }, 12000) // 12 second timeout (reduced from 15s)
     
     return () => {
       clearTimeout(timeoutId)
@@ -191,12 +240,35 @@ export default function GuestPage() {
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://rusqnjonwtgzcccyhjze.supabase.co'
       const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1c3Fuam9ud3RnemNjY3loanplIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0NTE3MDksImV4cCI6MjA3NjAyNzcwOX0.cIcjqiy-o4iMsj-h1URkJhKZr0k2WJpyrWUkdLZxBMM'
       const supabase = createClient(supabaseUrl, supabaseAnonKey)
-      const { data, error } = await supabase.functions.invoke('guest_confirm', {
+      
+      // Add timeout to guest_confirm call
+      const confirmPromise = supabase.functions.invoke('guest_confirm', {
         body: {
           token,
           accepted: true
         }
       })
+      
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Request timeout')), 10000) // 10 second timeout
+      )
+      
+      let data, error
+      try {
+        const result = await Promise.race([confirmPromise, timeoutPromise]) as { data: any, error: any }
+        data = result.data
+        error = result.error
+      } catch (timeoutError) {
+        if (timeoutError instanceof Error && timeoutError.message === 'Request timeout') {
+          setState({
+            status: 'error',
+            policyText: POLICY_TEXT,
+            error: 'Request timed out. Please try again.'
+          })
+          return
+        }
+        throw timeoutError
+      }
 
       console.log('guest_confirm response - error:', error)
       console.log('guest_confirm response - data:', JSON.stringify(data, null, 2))
@@ -213,19 +285,17 @@ export default function GuestPage() {
         return
       }
 
-      // Log policy acceptance event
-      try {
-        await supabase.functions.invoke('guest_event', {
-          body: {
-            token,
-            eventType: 'policy.accept',
-            ip: null, // We already captured this on page load
-            userAgent: navigator.userAgent
-          }
-        })
-      } catch (logError) {
+      // Log policy acceptance event (fire-and-forget, non-blocking)
+      supabase.functions.invoke('guest_event', {
+        body: {
+          token,
+          eventType: 'policy.accept',
+          ip: null, // We already captured this on page load
+          userAgent: navigator.userAgent
+        }
+      }).catch(logError => {
         console.log('Failed to log policy acceptance event:', logError)
-      }
+      })
 
       // Retrieve the verification code directly from the database
       const { data: attestationData, error: attestationError } = await supabase
@@ -254,7 +324,9 @@ export default function GuestPage() {
       setState({
         status: 'error',
         policyText: POLICY_TEXT,
-        error: 'Failed to confirm attestation'
+        error: error instanceof Error && error.message === 'Request timeout'
+          ? 'Request timed out. Please try again.'
+          : 'Failed to confirm attestation'
       })
     }
   }

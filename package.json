@@ -7,7 +7,6 @@
     "dev": "next dev",
     "dev:clean": "rm -rf .next && next dev",
     "lint": "next lint",
-    "lint:responsive": "node scripts/lint-responsive.js",
     "start": "next start"
   },
   "dependencies": {

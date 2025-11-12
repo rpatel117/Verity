@@ -54,16 +54,32 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     }, 1000) // 1 second timeout
     
-    // Force immediate check of session
+    // Force immediate check of session with validation
     const checkSession = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession()
         console.log('🔍 Manual session check:', session)
+        
         if (!session) {
           console.log('🔍 No session found - setting user to null and stopping initialization')
           setUser(null)
           setIsInitializing(false)
+          return
         }
+
+        // Validate session is not expired
+        const now = Math.floor(Date.now() / 1000)
+        const expiresAt = session.expires_at
+        if (expiresAt && expiresAt < now) {
+          console.log('🔍 Session expired, clearing...')
+          await supabase.auth.signOut()
+          setUser(null)
+          setIsInitializing(false)
+          return
+        }
+
+        // Session exists and is valid, wait for INITIAL_SESSION event to handle it
+        console.log('🔍 Valid session found, waiting for INITIAL_SESSION event')
       } catch (error) {
         console.log('🔍 Session check error:', error)
         setUser(null)
@@ -83,7 +99,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.log('🔄 Session exists:', !!session)
         console.log('🔄 User exists:', !!session?.user)
         console.log('🔄 Event type:', event)
-        console.log('🔄 Full session object:', session)
+        
+        // Validate session is not stale by checking expiration
+        if (session) {
+          const now = Math.floor(Date.now() / 1000)
+          const expiresAt = session.expires_at
+          if (expiresAt && expiresAt < now) {
+            console.log('🔄 Session expired, clearing...')
+            setUser(null)
+            setIsInitializing(false)
+            // Clear expired session
+            await supabase.auth.signOut()
+            return
+          }
+        }
         
         // Handle all auth events
         if (event === 'SIGNED_IN' && session?.user) {
@@ -98,7 +127,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             if (profileError) {
               console.error('Profile fetch failed:', profileError)
               setUser(null)
-            } else {
+            } else if (profile) {
               const userData: User = {
                 id: session.user.id,
                 email: session.user.email!,
@@ -107,6 +136,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 provider: 'email'
               }
               setUser(userData)
+            } else {
+              setUser(null)
             }
           } catch (error) {
             console.error('Error fetching profile:', error)
@@ -120,6 +151,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           // Handle initial session - CRITICAL: Always set user to null if no session
           if (session?.user) {
             try {
+              // Double-check session is still valid
+              const { data: { session: currentSession } } = await supabase.auth.getSession()
+              if (!currentSession || currentSession.user.id !== session.user.id) {
+                console.log('🔄 Session mismatch, clearing user')
+                setUser(null)
+                setIsInitializing(false)
+                return
+              }
+
               const { data: profile } = await supabase
                 .from('profiles')
                 .select('*')
@@ -146,10 +186,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             console.log('🔄 INITIAL_SESSION - no session, setting user to null')
             setUser(null)
           }
+        } else if (event === 'TOKEN_REFRESHED') {
+          // Token refreshed, session is still valid, no need to change user state
+          console.log('🔄 TOKEN_REFRESHED - session still valid')
         } else {
-          // Handle any other events by setting user to null
-          console.log('🔄 Other event - setting user to null')
-          setUser(null)
+          // Handle any other events - be conservative and clear user if session is missing
+          if (!session) {
+            console.log('🔄 Other event without session - setting user to null')
+            setUser(null)
+          }
         }
         
         // Always set initializing to false after first auth state change
@@ -167,6 +212,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (email: string, password: string) => {
     try {
+      // Clear any existing stale session before attempting login
+      // This prevents conflicts when re-logging in after closing a tab
+      const { data: { session: existingSession } } = await supabase.auth.getSession()
+      if (existingSession) {
+        console.log('🧹 Clearing existing session before login...')
+        await supabase.auth.signOut()
+        // Wait a moment for the signout to complete
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+
+      // Now attempt the login
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -251,6 +307,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const logout = async () => {
     try {
+      // Clear user state immediately to prevent UI flicker
+      setUser(null)
+      
       const { error } = await supabase.auth.signOut()
       
       if (error) {
@@ -259,20 +318,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Clear all auth-related localStorage
       if (typeof window !== 'undefined') {
-        localStorage.removeItem('sb-rusqnjonwtgzcccyhjze-auth-token')
-        localStorage.removeItem('supabase.auth.token')
-        // Clear any other auth-related keys
+        // Clear Supabase-specific keys
         Object.keys(localStorage).forEach(key => {
-          if (key.includes('supabase') || key.includes('auth')) {
+          if (key.includes('supabase') || key.includes('auth') || key.startsWith('sb-')) {
             localStorage.removeItem(key)
+          }
+        })
+        
+        // Also clear sessionStorage for good measure
+        Object.keys(sessionStorage).forEach(key => {
+          if (key.includes('supabase') || key.includes('auth') || key.startsWith('sb-')) {
+            sessionStorage.removeItem(key)
           }
         })
       }
 
-      setUser(null)
       toast.success('Successfully signed out!')
     } catch (error) {
       console.error('Logout failed:', error)
+      // Even if signOut fails, clear local state
+      setUser(null)
       const errorMessage = error instanceof Error ? error.message : 'Logout failed. Please try again.'
       toast.error(errorMessage)
       throw error
