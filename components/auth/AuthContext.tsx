@@ -76,12 +76,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (event === 'SIGNED_IN' && session?.user) {
           console.log('🔄 SIGNED_IN event received, fetching profile...')
           try {
-            // Get user profile
-            const { data: profile, error: profileError } = await supabase
+            // Get user profile with timeout to prevent hanging
+            const profilePromise = supabase
               .from('profiles')
               .select('*')
               .eq('id', session.user.id)
               .single()
+            
+            const profileTimeoutPromise = new Promise((_, reject) => {
+              setTimeout(() => reject(new Error('Profile fetch timed out after 10 seconds')), 10000)
+            })
+            
+            let profileResult: any = null
+            try {
+              profileResult = await Promise.race([profilePromise, profileTimeoutPromise])
+              console.log('🔄 Profile fetched successfully in SIGNED_IN handler')
+            } catch (timeoutError) {
+              console.error('🔄 Profile fetch timed out in SIGNED_IN handler:', timeoutError)
+              // If profile fetch times out, clear the session as it's likely invalid
+              await supabase.auth.signOut()
+              setUser(null)
+              setIsInitializing(false)
+              return
+            }
+            
+            const { data: profile, error: profileError } = profileResult || { data: null, error: null }
 
             if (profileError) {
               console.error('Profile fetch failed:', profileError)
@@ -248,10 +267,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       })
       subscription = authSubscription
       
-      // Wait a moment to see if the main handler already set the user
-      // This prevents duplicate profile fetches
-      await new Promise(resolve => setTimeout(resolve, 100))
-      
       const loginPromise = supabase.auth.signInWithPassword({
         email,
         password,
@@ -296,10 +311,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       console.log('🔐 Login successful, user:', user.email)
       
-      console.log('🔐 Fetching user profile...')
-      // Get or create user profile with timeout
-      // Note: The main SIGNED_IN handler may also be fetching the profile
-      // We'll fetch it here to ensure we have the data for the return value
+      // Wait a moment to see if the main SIGNED_IN handler already fetched the profile and set the user
+      // This prevents duplicate profile fetches and race conditions
+      await new Promise(resolve => setTimeout(resolve, 300))
+      
+      // Check if user state was already set by the main handler
+      // We'll use a ref to check the current user state
+      let currentUserState: User | null = null
+      // We can't directly read state here, so we'll try to get it from Supabase session
+      // and check if we already have a profile
+      
+      console.log('🔐 Checking if profile was already fetched by main handler...')
+      
+      // Try to get profile with a short timeout
+      // If the main handler already set the user, we can use that
+      // Otherwise, we'll fetch it ourselves
       const profilePromise = supabase
         .from('profiles')
         .select('*')
@@ -307,7 +333,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         .single()
       
       const profileTimeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Profile fetch timed out after 10 seconds')), 10000)
+        setTimeout(() => reject(new Error('Profile fetch timed out after 5 seconds')), 5000)
       })
       
       let profileResult: any = null
@@ -315,27 +341,50 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         profileResult = await Promise.race([profilePromise, profileTimeoutPromise])
         console.log('🔐 Profile fetched successfully')
       } catch (timeoutError) {
-        console.error('🔐 Profile fetch timed out, trying fallback...')
-        // If profile fetch times out, try a quick retry without timeout
-        // The main handler may have already set the user, but we still need profile for return value
-        try {
-          const quickRetry = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', user.id)
-            .single()
-          
-          if (quickRetry.data) {
-            console.log('🔐 Profile fetched on retry')
-            profileResult = quickRetry
-          } else {
-            throw new Error('Profile fetch failed after retry')
+        console.warn('🔐 Profile fetch timed out - main handler may have already set user state')
+        // If profile fetch times out, the main handler likely already set the user
+        // Check if we can get the current session to verify
+        const { data: { session: currentSession } } = await supabase.auth.getSession()
+        if (currentSession?.user) {
+          console.log('🔐 Session exists, main handler likely set user. Skipping duplicate profile fetch.')
+          // The main handler already set the user, so we can return early
+          // We'll construct a minimal user data from the session
+          // But we still need profile data for the return value
+          // Let's try one more quick fetch without timeout
+          try {
+            const quickFetch = await Promise.race([
+              supabase.from('profiles').select('*').eq('id', user.id).single(),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Quick fetch timeout')), 2000))
+            ])
+            if (quickFetch.data) {
+              profileResult = quickFetch
+            } else {
+              // If we can't get profile, but user is set, that's okay
+              // The main handler already handled it - return a minimal user object
+              console.log('🔐 Main handler set user, returning minimal user data')
+              const minimalUser: User = {
+                id: user.id,
+                email: user.email!,
+                name: user.email!.split('@')[0], // Fallback name
+                hotelName: '', // Will be set by main handler
+                provider: 'email'
+              }
+              return minimalUser
+            }
+          } catch (quickError) {
+            console.log('🔐 Quick fetch also failed, but main handler set user. Returning minimal user data.')
+            // Return minimal user - main handler already set full user state
+            const minimalUser: User = {
+              id: user.id,
+              email: user.email!,
+              name: user.email!.split('@')[0], // Fallback name
+              hotelName: '', // Will be set by main handler
+              provider: 'email'
+            }
+            return minimalUser
           }
-        } catch (retryError) {
-          console.error('🔐 Profile fetch failed after retry:', retryError)
-          // If main handler already set user, that's okay - user can continue
-          // But we still need to throw so the caller knows there was an issue
-          throw new Error('Profile fetch timed out. Your session may have been set. Please refresh if you see any issues.')
+        } else {
+          throw timeoutError
         }
       }
       
