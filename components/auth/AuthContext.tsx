@@ -175,16 +175,36 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       console.log('🔐 Login function started')
       
-      // Always clear any existing session before attempting login
+      // Try to clear any existing session before attempting login
       // This prevents conflicts when re-logging in after closing a tab
+      // Use a short timeout to prevent hanging
       console.log('🔐 Checking for existing session...')
-      const { data: { session: existingSession }, error: sessionError } = await supabase.auth.getSession()
       
-      if (sessionError) {
-        console.error('🔐 Error checking session:', sessionError)
+      let existingSession = null
+      let shouldClearSession = false
+      
+      try {
+        // Add timeout to getSession to prevent hanging
+        const getSessionPromise = supabase.auth.getSession()
+        const sessionTimeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Session check timed out')), 3000) // 3 second timeout
+        })
+        
+        const result = await Promise.race([getSessionPromise, sessionTimeoutPromise]) as any
+        
+        if (result?.data?.session) {
+          existingSession = result.data.session
+          shouldClearSession = true
+          console.log('🔐 Found existing session, will clear before login')
+        } else {
+          console.log('🔐 No existing session found')
+        }
+      } catch (error) {
+        console.warn('🔐 Session check timed out or failed, proceeding with login:', error)
+        // Continue with login - Supabase will handle session conflicts
       }
       
-      if (existingSession) {
+      if (shouldClearSession && existingSession) {
         console.log('🧹 Clearing existing session before login...')
         const { error: signOutError } = await supabase.auth.signOut()
         if (signOutError) {
