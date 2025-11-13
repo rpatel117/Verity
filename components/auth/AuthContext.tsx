@@ -231,37 +231,69 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Now attempt the login with timeout
       console.log('🔐 Attempting login with Supabase...')
-      const loginPromise = supabase.auth.signInWithPassword({
-        email,
-        password,
+      
+      // Set up a listener for SIGNED_IN event as a backup signal
+      let signedInEventReceived = false
+      let signedInUser: any = null
+      
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_IN' && session?.user) {
+          console.log('🔐 SIGNED_IN event detected during login, user:', session.user.email)
+          signedInEventReceived = true
+          signedInUser = session.user
+        }
       })
       
-      // Add timeout to prevent hanging
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Login request timed out after 30 seconds')), 30000)
-      })
-      
-      const { data, error } = await Promise.race([loginPromise, timeoutPromise]) as any
+      try {
+        const loginPromise = supabase.auth.signInWithPassword({
+          email,
+          password,
+        })
+        
+        // Add timeout to prevent hanging (increased to 60 seconds for slow networks)
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Login request timed out after 60 seconds')), 60000)
+        })
+        
+        let loginResult: any = null
+        try {
+          loginResult = await Promise.race([loginPromise, timeoutPromise])
+        } catch (timeoutError) {
+          // If timeout but SIGNED_IN event fired, login actually succeeded
+          if (signedInEventReceived && signedInUser) {
+            console.log('🔐 Login promise timed out but SIGNED_IN event received, using event data')
+            loginResult = { data: { user: signedInUser }, error: null }
+          } else {
+            throw timeoutError
+          }
+        }
+        
+        subscription.unsubscribe()
+        
+        const { data, error } = loginResult || { data: null, error: null }
 
-      if (error) {
-        console.error('🔐 Login error from Supabase:', error)
-        throw new Error(error.message || 'Login failed')
-      }
-      
-      console.log('🔐 Login successful, user:', data?.user?.email)
-      
-      if (!data?.user) {
-        console.error('🔐 No user data returned from login')
-        throw new Error('Login failed: No user data returned')
-      }
-      
-      console.log('🔐 Fetching user profile...')
-      // Get or create user profile
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', data.user.id)
-        .single()
+        if (error) {
+          console.error('🔐 Login error from Supabase:', error)
+          throw new Error(error.message || 'Login failed')
+        }
+        
+        // Use user from event if promise didn't return it
+        const user = data?.user || signedInUser
+        
+        if (!user) {
+          console.error('🔐 No user data returned from login')
+          throw new Error('Login failed: No user data returned')
+        }
+        
+        console.log('🔐 Login successful, user:', user.email)
+        
+        console.log('🔐 Fetching user profile...')
+        // Get or create user profile
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single()
 
       if (profileError) {
         console.error('🔐 Profile fetch error:', profileError)
@@ -281,8 +313,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log('🔐 Setting user state...')
       // Set user state immediately after successful login
       const userData: User = {
-        id: data.user.id,
-        email: data.user.email!,
+        id: user.id,
+        email: user.email!,
         name: profile.name,
         hotelName: profile.hotel_name,
         provider: 'email'
@@ -297,6 +329,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       return userData
     } catch (error) {
       console.error('🔐 Login function error:', error)
+      // Clean up subscription on error (if it exists in scope)
+      try {
+        if (typeof subscription !== 'undefined') {
+          subscription.unsubscribe()
+        }
+      } catch (cleanupError) {
+        // Ignore cleanup errors
+      }
       const errorMessage = error instanceof Error ? error.message : 'Login failed. Please try again.'
       toast.error(errorMessage)
       throw error
