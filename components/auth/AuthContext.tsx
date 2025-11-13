@@ -158,32 +158,91 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             console.log('🔄 Auth state change:', event, session?.user?.email)
           }
 
-          if (event === 'SIGNED_IN' && session?.user) {
-            const userData = await loadUserProfile(session.user.id, session.user.email!)
+        if (event === 'SIGNED_IN' && session?.user) {
+          try {
+            // Add timeout to profile fetch to prevent hanging
+            const profilePromise = loadUserProfile(session.user.id, session.user.email!)
+            const timeoutPromise = new Promise<User | null>((resolve) => 
+              setTimeout(() => {
+                if (process.env.NODE_ENV === 'development') {
+                  console.warn('Profile fetch timed out, using minimal user data')
+                }
+                resolve({
+                  id: session.user.id,
+                  email: session.user.email!,
+                  needsProfileCompletion: true
+                })
+              }, 5000)
+            )
+            
+            const userData = await Promise.race([profilePromise, timeoutPromise])
             if (mounted) {
               setUser(userData)
               setIsLoading(false)
             }
-          } else if (event === 'SIGNED_OUT') {
+          } catch (error) {
+            if (process.env.NODE_ENV === 'development') {
+              console.error('Error loading profile in SIGNED_IN handler:', error)
+            }
+            // Even if profile fetch fails, set user with minimal data
+            if (mounted) {
+              setUser({
+                id: session.user.id,
+                email: session.user.email!,
+                needsProfileCompletion: true
+              })
+              setIsLoading(false)
+            }
+          }
+        } else if (event === 'SIGNED_OUT') {
             if (mounted) {
               setUser(null)
               setIsLoading(false)
             }
-          } else if (event === 'INITIAL_SESSION') {
-            if (session?.user) {
-              const userData = await loadUserProfile(session.user.id, session.user.email!)
+        } else if (event === 'INITIAL_SESSION') {
+          if (session?.user) {
+            try {
+              // Add timeout to profile fetch
+              const profilePromise = loadUserProfile(session.user.id, session.user.email!)
+              const timeoutPromise = new Promise<User | null>((resolve) => 
+                setTimeout(() => {
+                  if (process.env.NODE_ENV === 'development') {
+                    console.warn('Profile fetch timed out in INITIAL_SESSION, using minimal user data')
+                  }
+                  resolve({
+                    id: session.user.id,
+                    email: session.user.email!,
+                    needsProfileCompletion: true
+                  })
+                }, 5000)
+              )
+              
+              const userData = await Promise.race([profilePromise, timeoutPromise])
               if (mounted) {
                 setUser(userData)
               }
-            } else {
+            } catch (error) {
+              if (process.env.NODE_ENV === 'development') {
+                console.error('Error loading profile in INITIAL_SESSION handler:', error)
+              }
+              // Even if profile fetch fails, set user with minimal data
               if (mounted) {
-                setUser(null)
+                setUser({
+                  id: session.user.id,
+                  email: session.user.email!,
+                  needsProfileCompletion: true
+                })
               }
             }
+          } else {
             if (mounted) {
-              setIsLoading(false)
+              setUser(null)
             }
-          } else if (event === 'TOKEN_REFRESHED') {
+          }
+          if (mounted) {
+            setIsLoading(false)
+          }
+        } else if (event === 'TOKEN_REFRESHED') {
             // Token refreshed - session is still valid, no state change needed
             // But ensure loading is false
             if (mounted) {
