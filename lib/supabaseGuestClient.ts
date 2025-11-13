@@ -8,21 +8,27 @@
  * - Only used for edge function calls, not auth operations
  */
 
-import { createClient } from "@supabase/supabase-js"
+import { createClient, SupabaseClient } from "@supabase/supabase-js"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 /**
  * Get guest Supabase client instance
- * Throws error if env vars are missing (but only when client is actually used)
+ * Throws error if env vars are missing (but only when client is actually used in browser)
  */
-function getSupabaseGuestClient() {
+function getSupabaseGuestClient(): SupabaseClient {
   if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error(
-      'Missing Supabase environment variables. ' +
-      'Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY'
-    )
+    // Only throw in browser - during SSR/build, return a mock client
+    if (typeof window !== 'undefined') {
+      throw new Error(
+        'Missing Supabase environment variables. ' +
+        'Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY'
+      )
+    }
+    // During SSR/build, return a minimal mock to prevent crashes
+    // This should never be used in practice, but prevents build errors
+    return {} as SupabaseClient
   }
   
   return createClient(supabaseUrl, supabaseAnonKey, {
@@ -50,16 +56,22 @@ function getSupabaseGuestClient() {
  * Configured to NOT persist sessions or trigger auth state changes
  * Lazy initialization to avoid errors during build/SSR
  */
-let _supabaseGuestClient: ReturnType<typeof createClient> | null = null
+let _supabaseGuestClient: SupabaseClient | null = null
 
-export const supabaseGuest = new Proxy({} as ReturnType<typeof createClient>, {
+function getGuestClient(): SupabaseClient {
+  if (!_supabaseGuestClient) {
+    _supabaseGuestClient = getSupabaseGuestClient()
+  }
+  return _supabaseGuestClient
+}
+
+// Create a Proxy that lazily initializes the client
+export const supabaseGuest = new Proxy({} as SupabaseClient, {
   get(_target, prop) {
-    if (!_supabaseGuestClient) {
-      _supabaseGuestClient = getSupabaseGuestClient()
-    }
-    const value = _supabaseGuestClient[prop as keyof typeof _supabaseGuestClient]
+    const client = getGuestClient()
+    const value = (client as any)[prop]
     if (typeof value === 'function') {
-      return value.bind(_supabaseGuestClient)
+      return value.bind(client)
     }
     return value
   }

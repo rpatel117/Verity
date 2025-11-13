@@ -11,7 +11,7 @@
  * - Database trigger for automatic profile creation (see migrations/002_add_profile_trigger.sql)
  */
 
-import { createClient } from "@supabase/supabase-js"
+import { createClient, SupabaseClient } from "@supabase/supabase-js"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -20,12 +20,18 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
  * Get Supabase client instance
  * Throws error if env vars are missing (but only when client is actually used)
  */
-function getSupabaseClient() {
+function getSupabaseClient(): SupabaseClient {
   if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error(
-      'Missing Supabase environment variables. ' +
-      'Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY'
-    )
+    // Only throw in browser - during SSR/build, return a mock client
+    if (typeof window !== 'undefined') {
+      throw new Error(
+        'Missing Supabase environment variables. ' +
+        'Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY'
+      )
+    }
+    // During SSR/build, return a minimal mock to prevent crashes
+    // This should never be used in practice, but prevents build errors
+    return {} as SupabaseClient
   }
   
   return createClient(supabaseUrl, supabaseAnonKey, {
@@ -43,16 +49,22 @@ function getSupabaseClient() {
  * Configured for Next.js web environment (client-side only)
  * Lazy initialization to avoid errors during build/SSR
  */
-let _supabaseClient: ReturnType<typeof createClient> | null = null
+let _supabaseClient: SupabaseClient | null = null
 
-export const supabase = new Proxy({} as ReturnType<typeof createClient>, {
+function getClient(): SupabaseClient {
+  if (!_supabaseClient) {
+    _supabaseClient = getSupabaseClient()
+  }
+  return _supabaseClient
+}
+
+// Create a Proxy that lazily initializes the client
+export const supabase = new Proxy({} as SupabaseClient, {
   get(_target, prop) {
-    if (!_supabaseClient) {
-      _supabaseClient = getSupabaseClient()
-    }
-    const value = _supabaseClient[prop as keyof typeof _supabaseClient]
+    const client = getClient()
+    const value = (client as any)[prop]
     if (typeof value === 'function') {
-      return value.bind(_supabaseClient)
+      return value.bind(client)
     }
     return value
   }
