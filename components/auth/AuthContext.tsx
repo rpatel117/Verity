@@ -16,7 +16,7 @@ interface AuthContextType {
   user: User | null
   isAuthenticated: boolean
   isInitializing: boolean
-  login: (email: string, password: string) => Promise<void>
+  login: (email: string, password: string) => Promise<User | void>
   signup: (email: string, password: string, name: string, hotelName: string) => Promise<void>
   logout: () => Promise<void>
   forgotPassword: (email: string) => Promise<void>
@@ -74,6 +74,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         // Only handle the events we care about - trust Supabase's session state
         if (event === 'SIGNED_IN' && session?.user) {
+          console.log('🔄 SIGNED_IN event received, fetching profile...')
           try {
             // Get user profile
             const { data: profile, error: profileError } = await supabase
@@ -85,6 +86,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             if (profileError) {
               console.error('Profile fetch failed:', profileError)
               setUser(null)
+              setIsInitializing(false)
             } else if (profile) {
               const userData: User = {
                 id: session.user.id,
@@ -93,17 +95,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 hotelName: profile.hotel_name,
                 provider: 'email'
               }
+              console.log('🔄 Setting user state from SIGNED_IN event:', userData.email)
               setUser(userData)
+              setIsInitializing(false)
             } else {
+              console.error('No profile found for user')
               setUser(null)
+              setIsInitializing(false)
             }
           } catch (error) {
             console.error('Error fetching profile:', error)
             setUser(null)
+            setIsInitializing(false)
           }
         } else if (event === 'SIGNED_OUT') {
           console.log('🔄 SIGNED_OUT - setting user to null')
           setUser(null)
+          // Always set initializing to false after handling event
+          setIsInitializing(false)
         } else if (event === 'INITIAL_SESSION') {
           console.log('🔄 INITIAL_SESSION - session:', !!session, 'user:', !!session?.user)
           // Validate session is actually valid - if profile fetch fails, clear the session
@@ -142,16 +151,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             console.log('🔄 INITIAL_SESSION - no session, setting user to null')
             setUser(null)
           }
+          // Always set initializing to false after handling INITIAL_SESSION
+          setIsInitializing(false)
         } else if (event === 'TOKEN_REFRESHED') {
           // Token refreshed - session is still valid, no state change needed
           console.log('🔄 TOKEN_REFRESHED - session still valid, no action needed')
           // Do nothing - user state remains the same
+          // But still set initializing to false if it's still true (shouldn't happen, but safety)
+          setIsInitializing(false)
         }
         // Ignore all other events - Supabase will handle them
-        
-        // Always set initializing to false after first auth state change
-        console.log('🔄 Setting isInitializing to false')
-        setIsInitializing(false)
       }
     )
 
@@ -198,6 +207,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         throw new Error(error.message)
       }
       
+      if (!data.user) {
+        throw new Error('Login failed: No user data returned')
+      }
+      
       if (data.user) {
         // Get or create user profile
         const { data: profile, error: profileError } = await supabase
@@ -224,7 +237,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           provider: 'email'
         }
         setUser(userData)
+        // Ensure isInitializing is false so redirect can happen
+        setIsInitializing(false)
         toast.success('Successfully signed in!')
+        
+        // Return user data so caller can handle redirect
+        return userData
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Login failed. Please try again.'

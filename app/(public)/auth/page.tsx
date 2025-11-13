@@ -36,65 +36,81 @@ function AuthPageContent() {
 
   // Clear any stale sessions when landing on auth page
   // This ensures users can always log in, even if they closed a tab without logging out
+  // But only run this AFTER auth initialization is complete to avoid interfering
   useEffect(() => {
+    // Don't run if still initializing - wait for auth context to finish
+    if (isInitializing) return
+    
     const clearStaleSession = async () => {
       try {
         const { supabase } = await import('@/lib/supabaseClient')
         const { data: { session } } = await supabase.auth.getSession()
         
-        if (session) {
-          // Validate the session by trying to fetch the profile
-          const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('id', session.user.id)
-            .single()
-          
-          // If profile fetch fails, the session is invalid - clear it
-          if (profileError || !profile) {
-            console.log('🧹 Clearing stale/invalid session on auth page')
-            await supabase.auth.signOut()
-            // Also manually clear localStorage to be thorough
-            if (typeof window !== 'undefined') {
-              Object.keys(localStorage).forEach(key => {
-                if (key.includes('supabase') || key.includes('auth') || key.startsWith('sb-')) {
-                  localStorage.removeItem(key)
-                }
-              })
-            }
+        // Only clear if there's a session but user is not authenticated (stale session)
+        if (session && !isAuthenticated) {
+          console.log('🧹 Clearing stale session on auth page (session exists but user not authenticated)')
+          await supabase.auth.signOut()
+          // Also manually clear localStorage to be thorough
+          if (typeof window !== 'undefined') {
+            Object.keys(localStorage).forEach(key => {
+              if (key.includes('supabase') || key.includes('auth') || key.startsWith('sb-')) {
+                localStorage.removeItem(key)
+              }
+            })
           }
         }
       } catch (error) {
         console.error('Error checking stale session:', error)
-        // On error, clear everything to be safe
-        try {
-          const { supabase } = await import('@/lib/supabaseClient')
-          await supabase.auth.signOut()
-        } catch (e) {
-          // Ignore errors during cleanup
+        // Don't clear on error - let auth context handle it
+      }
+    }
+    
+    // Run after a small delay to ensure auth context has processed
+    const timeoutId = setTimeout(clearStaleSession, 100)
+    
+    return () => clearTimeout(timeoutId)
+  }, [isInitializing, isAuthenticated])
+
+  // Redirect authenticated users to dashboard
+  // This is the primary redirect mechanism - always check if user is authenticated
+  useEffect(() => {
+    // Don't redirect while still initializing
+    if (isInitializing) return
+    
+    // If authenticated, immediately redirect to dashboard
+    if (isAuthenticated) {
+      console.log('🔄 User is authenticated, redirecting to dashboard')
+      router.push('/dashboard')
+      return
+    }
+  }, [isAuthenticated, isInitializing, router])
+  
+  // Additional check: If user becomes authenticated, force redirect
+  // This handles cases where the auth state updates but the redirect doesn't fire
+  useEffect(() => {
+    const checkAuthAndRedirect = () => {
+      if (!isInitializing && isAuthenticated) {
+        const currentPath = window.location.pathname
+        if (currentPath.startsWith('/auth')) {
+          console.log('🔄 Force redirect: User authenticated on auth page')
+          router.replace('/dashboard')
         }
       }
     }
     
-    // Only run this check once when component mounts
-    clearStaleSession()
-  }, [])
-
-  // Redirect authenticated users to dashboard
-  // Also handle stale sessions that might cause UI errors
-  useEffect(() => {
-    if (!isInitializing) {
-      if (isAuthenticated) {
-        router.push('/dashboard')
+    // Check immediately
+    checkAuthAndRedirect()
+    
+    // Also check periodically as a safety net (only while on auth page)
+    const intervalId = setInterval(() => {
+      if (window.location.pathname.startsWith('/auth')) {
+        checkAuthAndRedirect()
       } else {
-        // If not authenticated and not initializing, ensure we're on auth page
-        // This prevents UI errors from stale session state
-        const currentPath = window.location.pathname
-        if (!currentPath.startsWith('/auth')) {
-          // Already handled by router, but this ensures clean state
-        }
+        clearInterval(intervalId)
       }
-    }
+    }, 500) // Check every 500ms
+    
+    return () => clearInterval(intervalId)
   }, [isAuthenticated, isInitializing, router])
 
   const loginForm = useForm({
@@ -152,14 +168,32 @@ function AuthPageContent() {
     try {
       console.log('🔐 Calling login function...')
       await login(data.email, data.password)
-      console.log('🔐 Login successful, redirecting...')
-      router.push('/dashboard')
+      console.log('🔐 Login successful, waiting for auth state to update...')
+      
+      // Wait a moment for the auth state to update
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      // Check if we're authenticated and redirect
+      // The useEffect should handle this, but we'll also do it here as a backup
+      if (isAuthenticated) {
+        console.log('🔐 User authenticated, redirecting to dashboard')
+        router.push('/dashboard')
+      } else {
+        console.log('🔐 Waiting for auth state update...')
+        // Give it a bit more time, then check again
+        setTimeout(() => {
+          if (isAuthenticated) {
+            router.push('/dashboard')
+          }
+        }, 500)
+      }
     } catch (error) {
       console.error('🔐 Login error:', error)
       setError('Login failed. Please check your credentials.')
-    } finally {
       setIsSubmitting(false)
     }
+    // Note: Don't set isSubmitting to false here if login succeeded
+    // Let the redirect happen while showing loading state
   }
 
   const handleSignup = async (data: any) => {
