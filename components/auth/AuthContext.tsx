@@ -151,47 +151,58 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     let subscription: { unsubscribe: () => void } | null = null
     try {
       const { data: { subscription: sub } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (!mounted) return
+        async (event, session) => {
+          if (!mounted) return
 
-        if (process.env.NODE_ENV === 'development') {
-          console.log('🔄 Auth state change:', event, session?.user?.email)
-        }
+          if (process.env.NODE_ENV === 'development') {
+            console.log('🔄 Auth state change:', event, session?.user?.email)
+          }
 
-        if (event === 'SIGNED_IN' && session?.user) {
-          const userData = await loadUserProfile(session.user.id, session.user.email!)
-          if (mounted) {
-            setUser(userData)
-            setIsLoading(false)
-          }
-        } else if (event === 'SIGNED_OUT') {
-          if (mounted) {
-            setUser(null)
-            setIsLoading(false)
-          }
-        } else if (event === 'INITIAL_SESSION') {
-          if (session?.user) {
+          if (event === 'SIGNED_IN' && session?.user) {
             const userData = await loadUserProfile(session.user.id, session.user.email!)
             if (mounted) {
               setUser(userData)
+              setIsLoading(false)
             }
-          } else {
+          } else if (event === 'SIGNED_OUT') {
             if (mounted) {
               setUser(null)
+              setIsLoading(false)
+            }
+          } else if (event === 'INITIAL_SESSION') {
+            if (session?.user) {
+              const userData = await loadUserProfile(session.user.id, session.user.email!)
+              if (mounted) {
+                setUser(userData)
+              }
+            } else {
+              if (mounted) {
+                setUser(null)
+              }
+            }
+            if (mounted) {
+              setIsLoading(false)
+            }
+          } else if (event === 'TOKEN_REFRESHED') {
+            // Token refreshed - session is still valid, no state change needed
+            // But ensure loading is false
+            if (mounted) {
+              setIsLoading(false)
             }
           }
-          if (mounted) {
-            setIsLoading(false)
-          }
-        } else if (event === 'TOKEN_REFRESHED') {
-          // Token refreshed - session is still valid, no state change needed
-          // But ensure loading is false
-          if (mounted) {
-            setIsLoading(false)
-          }
         }
+      )
+      subscription = sub
+    } catch (error) {
+      // If Proxy throws (e.g., missing env vars), skip subscription
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error subscribing to auth state changes:', error)
       }
-    )
+      // Still set loading to false
+      if (mounted) {
+        setIsLoading(false)
+      }
+    }
 
     return () => {
       mounted = false
