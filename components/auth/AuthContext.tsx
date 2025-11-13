@@ -173,12 +173,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (email: string, password: string) => {
     try {
+      console.log('🔐 Login function started')
+      
       // Always clear any existing session before attempting login
       // This prevents conflicts when re-logging in after closing a tab
-      const { data: { session: existingSession } } = await supabase.auth.getSession()
+      console.log('🔐 Checking for existing session...')
+      const { data: { session: existingSession }, error: sessionError } = await supabase.auth.getSession()
+      
+      if (sessionError) {
+        console.error('🔐 Error checking session:', sessionError)
+      }
+      
       if (existingSession) {
         console.log('🧹 Clearing existing session before login...')
-        await supabase.auth.signOut()
+        const { error: signOutError } = await supabase.auth.signOut()
+        if (signOutError) {
+          console.error('🔐 Error signing out:', signOutError)
+        }
         // Also manually clear localStorage to be thorough
         if (typeof window !== 'undefined') {
           Object.keys(localStorage).forEach(key => {
@@ -195,56 +206,77 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
         // Wait a moment for the signout to complete
         await new Promise(resolve => setTimeout(resolve, 200))
+        console.log('🧹 Session cleared')
       }
 
-      // Now attempt the login
-      const { data, error } = await supabase.auth.signInWithPassword({
+      // Now attempt the login with timeout
+      console.log('🔐 Attempting login with Supabase...')
+      const loginPromise = supabase.auth.signInWithPassword({
         email,
         password,
       })
+      
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Login request timed out after 30 seconds')), 30000)
+      })
+      
+      const { data, error } = await Promise.race([loginPromise, timeoutPromise]) as any
 
       if (error) {
-        throw new Error(error.message)
+        console.error('🔐 Login error from Supabase:', error)
+        throw new Error(error.message || 'Login failed')
       }
       
-      if (!data.user) {
+      console.log('🔐 Login successful, user:', data?.user?.email)
+      
+      if (!data?.user) {
+        console.error('🔐 No user data returned from login')
         throw new Error('Login failed: No user data returned')
       }
       
-      if (data.user) {
-        // Get or create user profile
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', data.user.id)
-          .single()
+      console.log('🔐 Fetching user profile...')
+      // Get or create user profile
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', data.user.id)
+        .single()
 
-        if (profileError) {
-          if (profileError.code === 'PGRST116') {
-            // Profile doesn't exist, this shouldn't happen for existing users
-            throw new Error('User profile not found. Please contact support.')
-          } else {
-            throw new Error('Failed to fetch user profile')
-          }
+      if (profileError) {
+        console.error('🔐 Profile fetch error:', profileError)
+        if (profileError.code === 'PGRST116') {
+          // Profile doesn't exist, this shouldn't happen for existing users
+          throw new Error('User profile not found. Please contact support.')
+        } else {
+          throw new Error(`Failed to fetch user profile: ${profileError.message}`)
         }
-
-        // Set user state immediately after successful login
-        const userData: User = {
-          id: data.user.id,
-          email: data.user.email!,
-          name: profile.name,
-          hotelName: profile.hotel_name,
-          provider: 'email'
-        }
-        setUser(userData)
-        // Ensure isInitializing is false so redirect can happen
-        setIsInitializing(false)
-        toast.success('Successfully signed in!')
-        
-        // Return user data so caller can handle redirect
-        return userData
       }
+      
+      if (!profile) {
+        console.error('🔐 No profile found')
+        throw new Error('User profile not found. Please contact support.')
+      }
+
+      console.log('🔐 Setting user state...')
+      // Set user state immediately after successful login
+      const userData: User = {
+        id: data.user.id,
+        email: data.user.email!,
+        name: profile.name,
+        hotelName: profile.hotel_name,
+        provider: 'email'
+      }
+      setUser(userData)
+      // Ensure isInitializing is false so redirect can happen
+      setIsInitializing(false)
+      console.log('🔐 Login complete, user state set')
+      toast.success('Successfully signed in!')
+      
+      // Return user data so caller can handle redirect
+      return userData
     } catch (error) {
+      console.error('🔐 Login function error:', error)
       const errorMessage = error instanceof Error ? error.message : 'Login failed. Please try again.'
       toast.error(errorMessage)
       throw error
