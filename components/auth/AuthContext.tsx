@@ -121,9 +121,38 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (!mounted) return
 
         if (session?.user) {
-          const userData = await loadUserProfile(session.user.id, session.user.email!)
-          if (mounted) {
-            setUser(userData)
+          try {
+            // Add timeout to profile fetch in initial check
+            const profilePromise = loadUserProfile(session.user.id, session.user.email!)
+            const timeoutPromise = new Promise<User | null>((resolve) => 
+              setTimeout(() => {
+                if (process.env.NODE_ENV === 'development') {
+                  console.warn('Profile fetch timed out in initial check, using minimal user data')
+                }
+                resolve({
+                  id: session.user.id,
+                  email: session.user.email!,
+                  needsProfileCompletion: true
+                })
+              }, 5000)
+            )
+            
+            const userData = await Promise.race([profilePromise, timeoutPromise])
+            if (mounted) {
+              setUser(userData)
+            }
+          } catch (error) {
+            if (process.env.NODE_ENV === 'development') {
+              console.error('Error loading profile in initial check:', error)
+            }
+            // Even if profile fetch fails, set user with minimal data
+            if (mounted) {
+              setUser({
+                id: session.user.id,
+                email: session.user.email!,
+                needsProfileCompletion: true
+              })
+            }
           }
         } else {
           if (mounted) {
