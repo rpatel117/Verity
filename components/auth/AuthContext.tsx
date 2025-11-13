@@ -235,65 +235,68 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Set up a listener for SIGNED_IN event as a backup signal
       let signedInEventReceived = false
       let signedInUser: any = null
+      let subscription: { unsubscribe: () => void } | null = null
       
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_IN' && session?.user) {
           console.log('🔐 SIGNED_IN event detected during login, user:', session.user.email)
           signedInEventReceived = true
           signedInUser = session.user
         }
       })
+      subscription = authSubscription
       
+      const loginPromise = supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+      
+      // Add timeout to prevent hanging (increased to 60 seconds for slow networks)
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Login request timed out after 60 seconds')), 60000)
+      })
+      
+      let loginResult: any = null
       try {
-        const loginPromise = supabase.auth.signInWithPassword({
-          email,
-          password,
-        })
-        
-        // Add timeout to prevent hanging (increased to 60 seconds for slow networks)
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Login request timed out after 60 seconds')), 60000)
-        })
-        
-        let loginResult: any = null
-        try {
-          loginResult = await Promise.race([loginPromise, timeoutPromise])
-        } catch (timeoutError) {
-          // If timeout but SIGNED_IN event fired, login actually succeeded
-          if (signedInEventReceived && signedInUser) {
-            console.log('🔐 Login promise timed out but SIGNED_IN event received, using event data')
-            loginResult = { data: { user: signedInUser }, error: null }
-          } else {
-            throw timeoutError
-          }
+        loginResult = await Promise.race([loginPromise, timeoutPromise])
+      } catch (timeoutError) {
+        // If timeout but SIGNED_IN event fired, login actually succeeded
+        if (signedInEventReceived && signedInUser) {
+          console.log('🔐 Login promise timed out but SIGNED_IN event received, using event data')
+          loginResult = { data: { user: signedInUser }, error: null }
+        } else {
+          throw timeoutError
         }
-        
+      }
+      
+      if (subscription) {
         subscription.unsubscribe()
-        
-        const { data, error } = loginResult || { data: null, error: null }
+      }
+      
+      const { data, error } = loginResult || { data: null, error: null }
 
-        if (error) {
-          console.error('🔐 Login error from Supabase:', error)
-          throw new Error(error.message || 'Login failed')
-        }
-        
-        // Use user from event if promise didn't return it
-        const user = data?.user || signedInUser
-        
-        if (!user) {
-          console.error('🔐 No user data returned from login')
-          throw new Error('Login failed: No user data returned')
-        }
-        
-        console.log('🔐 Login successful, user:', user.email)
-        
-        console.log('🔐 Fetching user profile...')
-        // Get or create user profile
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single()
+      if (error) {
+        console.error('🔐 Login error from Supabase:', error)
+        throw new Error(error.message || 'Login failed')
+      }
+      
+      // Use user from event if promise didn't return it
+      const user = data?.user || signedInUser
+      
+      if (!user) {
+        console.error('🔐 No user data returned from login')
+        throw new Error('Login failed: No user data returned')
+      }
+      
+      console.log('🔐 Login successful, user:', user.email)
+      
+      console.log('🔐 Fetching user profile...')
+      // Get or create user profile
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single()
 
       if (profileError) {
         console.error('🔐 Profile fetch error:', profileError)
@@ -329,13 +332,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       return userData
     } catch (error) {
       console.error('🔐 Login function error:', error)
-      // Clean up subscription on error (if it exists in scope)
-      try {
-        if (typeof subscription !== 'undefined') {
+      // Clean up subscription on error
+      if (subscription) {
+        try {
           subscription.unsubscribe()
+        } catch (cleanupError) {
+          // Ignore cleanup errors
         }
-      } catch (cleanupError) {
-        // Ignore cleanup errors
       }
       const errorMessage = error instanceof Error ? error.message : 'Login failed. Please try again.'
       toast.error(errorMessage)
@@ -480,4 +483,5 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       {children}
     </AuthContext.Provider>
   )
+}
 }
