@@ -106,16 +106,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setUser(null)
         } else if (event === 'INITIAL_SESSION') {
           console.log('🔄 INITIAL_SESSION - session:', !!session, 'user:', !!session?.user)
-          // Trust Supabase - if they say there's a session, use it
+          // Validate session is actually valid - if profile fetch fails, clear the session
           if (session?.user) {
             try {
-              const { data: profile } = await supabase
+              const { data: profile, error: profileError } = await supabase
                 .from('profiles')
                 .select('*')
                 .eq('id', session.user.id)
                 .single()
 
-              if (profile) {
+              if (profileError || !profile) {
+                // Profile doesn't exist or fetch failed - session is invalid, clear it
+                console.log('🔄 INITIAL_SESSION - profile fetch failed, clearing invalid session')
+                console.error('Profile error:', profileError)
+                await supabase.auth.signOut()
+                setUser(null)
+              } else {
                 const userData: User = {
                   id: session.user.id,
                   email: session.user.email!,
@@ -124,11 +130,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                   provider: 'email'
                 }
                 setUser(userData)
-              } else {
-                setUser(null)
               }
             } catch (error) {
               console.error('Error fetching initial profile:', error)
+              // On error, clear the session to prevent stale state
+              console.log('🔄 INITIAL_SESSION - error occurred, clearing session')
+              await supabase.auth.signOut()
               setUser(null)
             }
           } else {
@@ -157,14 +164,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (email: string, password: string) => {
     try {
-      // Clear any existing stale session before attempting login
+      // Always clear any existing session before attempting login
       // This prevents conflicts when re-logging in after closing a tab
       const { data: { session: existingSession } } = await supabase.auth.getSession()
       if (existingSession) {
         console.log('🧹 Clearing existing session before login...')
         await supabase.auth.signOut()
+        // Also manually clear localStorage to be thorough
+        if (typeof window !== 'undefined') {
+          Object.keys(localStorage).forEach(key => {
+            if (key.includes('supabase') || key.includes('auth') || key.startsWith('sb-')) {
+              localStorage.removeItem(key)
+            }
+          })
+          // Clear sessionStorage too
+          Object.keys(sessionStorage).forEach(key => {
+            if (key.includes('supabase') || key.includes('auth') || key.startsWith('sb-')) {
+              sessionStorage.removeItem(key)
+            }
+          })
+        }
         // Wait a moment for the signout to complete
-        await new Promise(resolve => setTimeout(resolve, 100))
+        await new Promise(resolve => setTimeout(resolve, 200))
       }
 
       // Now attempt the login

@@ -34,6 +34,52 @@ function AuthPageContent() {
   // Get the default tab from URL params
   const defaultTab = searchParams.get('tab') === 'signup' ? 'signup' : 'login'
 
+  // Clear any stale sessions when landing on auth page
+  // This ensures users can always log in, even if they closed a tab without logging out
+  useEffect(() => {
+    const clearStaleSession = async () => {
+      try {
+        const { supabase } = await import('@/lib/supabaseClient')
+        const { data: { session } } = await supabase.auth.getSession()
+        
+        if (session) {
+          // Validate the session by trying to fetch the profile
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('id', session.user.id)
+            .single()
+          
+          // If profile fetch fails, the session is invalid - clear it
+          if (profileError || !profile) {
+            console.log('🧹 Clearing stale/invalid session on auth page')
+            await supabase.auth.signOut()
+            // Also manually clear localStorage to be thorough
+            if (typeof window !== 'undefined') {
+              Object.keys(localStorage).forEach(key => {
+                if (key.includes('supabase') || key.includes('auth') || key.startsWith('sb-')) {
+                  localStorage.removeItem(key)
+                }
+              })
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error checking stale session:', error)
+        // On error, clear everything to be safe
+        try {
+          const { supabase } = await import('@/lib/supabaseClient')
+          await supabase.auth.signOut()
+        } catch (e) {
+          // Ignore errors during cleanup
+        }
+      }
+    }
+    
+    // Only run this check once when component mounts
+    clearStaleSession()
+  }, [])
+
   // Redirect authenticated users to dashboard
   // Also handle stale sessions that might cause UI errors
   useEffect(() => {
