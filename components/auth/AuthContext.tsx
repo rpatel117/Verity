@@ -42,7 +42,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isInitializing, setIsInitializing] = useState(true)
   
 
-  // Simplified auth initialization
+  // Simplified auth initialization - Trust Supabase's session management
   useEffect(() => {
     let mounted = true
     
@@ -63,69 +63,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.log('⏰ Auth initialization timeout - forcing isInitializing to false')
         setIsInitializing(false)
       }
-    }, 1000) // 1 second timeout
-    
-    // Force immediate check of session with validation
-    const checkSession = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        console.log('🔍 Manual session check:', session)
-        
-        if (!session) {
-          console.log('🔍 No session found - setting user to null and stopping initialization')
-          setUser(null)
-          setIsInitializing(false)
-          return
-        }
+    }, 2000) // Increased to 2 seconds to give Supabase time to initialize
 
-        // Validate session is not expired
-        const now = Math.floor(Date.now() / 1000)
-        const expiresAt = session.expires_at
-        if (expiresAt && expiresAt < now) {
-          console.log('🔍 Session expired, clearing...')
-          await supabase.auth.signOut()
-          setUser(null)
-          setIsInitializing(false)
-          return
-        }
-
-        // Session exists and is valid, wait for INITIAL_SESSION event to handle it
-        console.log('🔍 Valid session found, waiting for INITIAL_SESSION event')
-      } catch (error) {
-        console.log('🔍 Session check error:', error)
-        setUser(null)
-        setIsInitializing(false)
-      }
-    }
-    
-    // Check session immediately
-    checkSession()
-
-    // Listen for auth state changes
+    // Listen for auth state changes - Trust Supabase's session management
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return
         
         console.log('🔄 Auth state change:', event, session?.user?.email)
-        console.log('🔄 Session exists:', !!session)
-        console.log('🔄 User exists:', !!session?.user)
-        console.log('🔄 Event type:', event)
         
-        // Validate session is not stale by checking expiration
-        if (session) {
-          const now = Math.floor(Date.now() / 1000)
-          const expiresAt = session.expires_at
-          if (expiresAt && expiresAt < now) {
-            console.log('🔄 Session expired, clearing...')
-            setUser(null)
-            setIsInitializing(false)
-            // Clear expired session
-            await supabase.auth.signOut()
-            return
-          }
-        }
-        
-        // Handle all auth events
+        // Only handle the events we care about - trust Supabase's session state
         if (event === 'SIGNED_IN' && session?.user) {
           try {
             // Get user profile
@@ -159,18 +106,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setUser(null)
         } else if (event === 'INITIAL_SESSION') {
           console.log('🔄 INITIAL_SESSION - session:', !!session, 'user:', !!session?.user)
-          // Handle initial session - CRITICAL: Always set user to null if no session
+          // Trust Supabase - if they say there's a session, use it
           if (session?.user) {
             try {
-              // Double-check session is still valid
-              const { data: { session: currentSession } } = await supabase.auth.getSession()
-              if (!currentSession || currentSession.user.id !== session.user.id) {
-                console.log('🔄 Session mismatch, clearing user')
-                setUser(null)
-                setIsInitializing(false)
-                return
-              }
-
               const { data: profile } = await supabase
                 .from('profiles')
                 .select('*')
@@ -198,15 +136,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setUser(null)
           }
         } else if (event === 'TOKEN_REFRESHED') {
-          // Token refreshed, session is still valid, no need to change user state
-          console.log('🔄 TOKEN_REFRESHED - session still valid')
-        } else {
-          // Handle any other events - be conservative and clear user if session is missing
-          if (!session) {
-            console.log('🔄 Other event without session - setting user to null')
-            setUser(null)
-          }
+          // Token refreshed - session is still valid, no state change needed
+          console.log('🔄 TOKEN_REFRESHED - session still valid, no action needed')
+          // Do nothing - user state remains the same
         }
+        // Ignore all other events - Supabase will handle them
         
         // Always set initializing to false after first auth state change
         console.log('🔄 Setting isInitializing to false')
