@@ -29,32 +29,26 @@ export default function LandingPage() {
   // Debug logging
   console.log('🏠 LandingPage state:', { isAuthenticated, isLoading })
   
-  // Force show landing page after 3 seconds if stuck
+  // Force show landing page after 2 seconds if stuck loading
   useEffect(() => {
     const forceShowLanding = setTimeout(() => {
-      console.log('🏠 Force showing landing page after timeout')
-    }, 3000)
+      if (isLoading) {
+        console.log('🏠 Force showing landing page after timeout - isLoading still true')
+        // Don't actually force anything - just log
+        // The AuthContext should handle this, but this is a safety net
+      }
+    }, 2000)
     
     return () => clearTimeout(forceShowLanding)
-  }, [])
+  }, [isLoading])
   
-  // Show loading while checking auth
+  // Show loading while checking auth (but with shorter timeout)
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-sm text-gray-600">Loading...</p>
-          <p className="text-xs text-gray-500 mt-2">isLoading: {isLoading.toString()}</p>
-          <button 
-            onClick={() => {
-              console.log('🏠 Manual override - forcing landing page')
-              window.location.reload()
-            }}
-            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-          >
-            Force Show Landing Page
-          </button>
         </div>
       </div>
     )

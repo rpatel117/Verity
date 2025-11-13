@@ -91,10 +91,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     let mounted = true
 
-    // Initial session check
+    // Initial session check with timeout to prevent infinite loading
     const initializeAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession()
+        // Add timeout to prevent hanging
+        const sessionPromise = supabase.auth.getSession()
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Session check timeout')), 5000)
+        )
+        
+        const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]) as any
         
         if (!mounted) return
 
@@ -116,6 +122,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setUser(null)
         }
       } finally {
+        // Always set loading to false, even on error or timeout
         if (mounted) {
           setIsLoading(false)
         }
