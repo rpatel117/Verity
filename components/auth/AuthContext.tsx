@@ -94,13 +94,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Initial session check with timeout to prevent infinite loading
     const initializeAuth = async () => {
       try {
-        // Add timeout to prevent hanging
-        const sessionPromise = supabase.auth.getSession()
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Session check timeout')), 5000)
-        )
+        // Wrap in try-catch to handle Proxy errors (e.g., missing env vars)
+        let sessionResult: any
+        try {
+          // Add timeout to prevent hanging
+          const sessionPromise = supabase.auth.getSession()
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Session check timeout')), 5000)
+          )
+          
+          sessionResult = await Promise.race([sessionPromise, timeoutPromise])
+        } catch (proxyError) {
+          // If Proxy throws (e.g., missing env vars), handle it here
+          if (process.env.NODE_ENV === 'development') {
+            console.error('Error accessing Supabase client:', proxyError)
+          }
+          if (mounted) {
+            setUser(null)
+            setIsLoading(false)
+          }
+          return
+        }
         
-        const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]) as any
+        const { data: { session } } = sessionResult || { data: { session: null } }
         
         if (!mounted) return
 
@@ -131,8 +147,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     initializeAuth()
 
-    // Subscribe to auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    // Subscribe to auth state changes (wrap in try-catch for Proxy errors)
+    let subscription: { unsubscribe: () => void } | null = null
+    try {
+      const { data: { subscription: sub } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return
 

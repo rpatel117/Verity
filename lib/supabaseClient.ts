@@ -24,14 +24,28 @@ function getSupabaseClient(): SupabaseClient {
   if (!supabaseUrl || !supabaseAnonKey) {
     // Only throw in browser - during SSR/build, return a mock client
     if (typeof window !== 'undefined') {
+      const missing = []
+      if (!supabaseUrl) missing.push('NEXT_PUBLIC_SUPABASE_URL')
+      if (!supabaseAnonKey) missing.push('NEXT_PUBLIC_SUPABASE_ANON_KEY')
       throw new Error(
-        'Missing Supabase environment variables. ' +
-        'Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY'
+        `Missing Supabase environment variables: ${missing.join(', ')}. ` +
+        'Please set these in your Vercel project settings under Environment Variables.'
       )
     }
     // During SSR/build, return a minimal mock to prevent crashes
     // This should never be used in practice, but prevents build errors
     return {} as SupabaseClient
+  }
+  
+  // Validate that the anon key looks correct (starts with eyJ)
+  if (!supabaseAnonKey.startsWith('eyJ')) {
+    if (typeof window !== 'undefined') {
+      throw new Error(
+        'Invalid Supabase anon key format. ' +
+        'The key should start with "eyJ" (it appears to be a JWT). ' +
+        'Please check your NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel environment variables.'
+      )
+    }
   }
   
   return createClient(supabaseUrl, supabaseAnonKey, {
