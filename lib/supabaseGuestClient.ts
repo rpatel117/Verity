@@ -13,33 +13,55 @@ import { createClient } from "@supabase/supabase-js"
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    'Missing Supabase environment variables. ' +
-    'Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY'
-  )
+/**
+ * Get guest Supabase client instance
+ * Throws error if env vars are missing (but only when client is actually used)
+ */
+function getSupabaseGuestClient() {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error(
+      'Missing Supabase environment variables. ' +
+      'Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY'
+    )
+  }
+  
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      autoRefreshToken: false, // Don't auto-refresh tokens
+      persistSession: false, // Don't persist sessions
+      detectSessionInUrl: false, // Don't detect sessions in URL
+      storage: typeof window !== 'undefined' ? {
+        // No-op storage to avoid conflicts with main client
+        getItem: () => null,
+        setItem: () => {},
+        removeItem: () => {},
+      } : undefined,
+    },
+    global: {
+      headers: {
+        'X-Client-Info': 'verity-guest-client'
+      }
+    }
+  })
 }
 
 /**
  * Guest-specific Supabase client
  * Configured to NOT persist sessions or trigger auth state changes
+ * Lazy initialization to avoid errors during build/SSR
  */
-export const supabaseGuest = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    autoRefreshToken: false, // Don't auto-refresh tokens
-    persistSession: false, // Don't persist sessions
-    detectSessionInUrl: false, // Don't detect sessions in URL
-    storage: typeof window !== 'undefined' ? {
-      // No-op storage to avoid conflicts with main client
-      getItem: () => null,
-      setItem: () => {},
-      removeItem: () => {},
-    } : undefined,
-  },
-  global: {
-    headers: {
-      'X-Client-Info': 'verity-guest-client'
+let _supabaseGuestClient: ReturnType<typeof createClient> | null = null
+
+export const supabaseGuest = new Proxy({} as ReturnType<typeof createClient>, {
+  get(_target, prop) {
+    if (!_supabaseGuestClient) {
+      _supabaseGuestClient = getSupabaseGuestClient()
     }
+    const value = _supabaseGuestClient[prop as keyof typeof _supabaseGuestClient]
+    if (typeof value === 'function') {
+      return value.bind(_supabaseGuestClient)
+    }
+    return value
   }
 })
 
