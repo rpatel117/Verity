@@ -19,8 +19,23 @@ Deno.serve(async (req) => {
     console.log('Guest confirm function started');
     
     // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') || 'https://rusqnjonwtgzcccyhjze.supabase.co';
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1c3Fuam9ud3RnemNjY3loanplIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MDQ1MTcwOSwiZXhwIjoyMDc2MDI3NzA5fQ.7Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q';
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('Missing Supabase environment variables');
+      return new Response(JSON.stringify({
+        ok: false,
+        error: 'Server configuration error'
+      }), {
+        status: 500,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        }
+      });
+    }
+    
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Parse request body
@@ -138,7 +153,7 @@ Deno.serve(async (req) => {
     await supabase.from('attestation_events').insert({
       attestation_id: attestation.id,
       event_type: 'policy.accept',
-      event_data: {
+      payload: {
         timestamp: new Date().toISOString()
       }
     });

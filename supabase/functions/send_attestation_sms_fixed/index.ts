@@ -17,8 +17,22 @@ Deno.serve(async (req) => {
   try {
     console.log('Edge function started');
     // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') || 'https://rusqnjonwtgzcccyhjze.supabase.co';
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1c3Fuam9ud3RnemNjY3loanplIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MDQ1MTcwOSwiZXhwIjoyMDc2MDI3NzA5fQ.7Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q';
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('Missing Supabase environment variables');
+      return new Response(JSON.stringify({
+        error: 'Server configuration error'
+      }), {
+        status: 500,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        }
+      });
+    }
+    
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     console.log('Supabase client created');
     

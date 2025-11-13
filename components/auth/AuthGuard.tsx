@@ -8,7 +8,7 @@
 "use client"
 
 import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/components/auth/AuthContext'
 import { Loader2 } from 'lucide-react'
 
@@ -17,16 +17,19 @@ interface AuthGuardProps {
 }
 
 export function AuthGuard({ children }: AuthGuardProps) {
-  const { isAuthenticated, isInitializing } = useAuth()
+  const { isAuthenticated, isLoading } = useAuth()
   const router = useRouter()
+  const pathname = usePathname()
 
   useEffect(() => {
-    if (!isInitializing && !isAuthenticated) {
-      router.push('/auth')
+    if (!isLoading && !isAuthenticated) {
+      // Preserve the intended destination for redirect after login
+      const redirectTo = pathname !== '/auth' ? `/auth?next=${encodeURIComponent(pathname)}` : '/auth'
+      router.push(redirectTo)
     }
-  }, [isAuthenticated, isInitializing, router])
+  }, [isAuthenticated, isLoading, router, pathname])
 
-  if (isInitializing) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">

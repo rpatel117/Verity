@@ -4,10 +4,10 @@
  * Authentication Context
  * 
  * Manages authentication state and provides login/logout functionality.
- * Includes SSO providers (Google, Microsoft) and development bypass.
+ * Simplified implementation that trusts Supabase's session management.
  */
 
-import React, { createContext, useContext, useState, useEffect } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import type { User } from '@/types'
 import { toast } from 'sonner'
@@ -15,8 +15,8 @@ import { toast } from 'sonner'
 interface AuthContextType {
   user: User | null
   isAuthenticated: boolean
-  isInitializing: boolean
-  login: (email: string, password: string) => Promise<User | void>
+  isLoading: boolean
+  login: (email: string, password: string) => Promise<void>
   signup: (email: string, password: string, name: string, hotelName: string) => Promise<void>
   logout: () => Promise<void>
   forgotPassword: (email: string) => Promise<void>
@@ -37,488 +37,194 @@ interface AuthProviderProps {
   children: React.ReactNode
 }
 
-export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null)
-  const [isInitializing, setIsInitializing] = useState(true)
-  
-
-  // Simplified auth initialization - Trust Supabase's session management
-  useEffect(() => {
-    let mounted = true
+/**
+ * Load user profile from database
+ * Returns null if profile doesn't exist (treats as onboarding issue, not auth failure)
+ */
+async function loadUserProfile(userId: string, email: string): Promise<User | null> {
+  try {
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single()
     
-    // Skip auth initialization on guest pages (public routes that don't need auth)
-    if (typeof window !== 'undefined') {
-      const pathname = window.location.pathname
-      if (pathname.startsWith('/guest/')) {
-        console.log('🔍 Guest page detected - skipping auth initialization')
-        setUser(null)
-        setIsInitializing(false)
-        return
+    if (error) {
+      if (error.code === 'PGRST116') {
+        // Profile doesn't exist - trigger should have created it
+        // This is a data consistency issue, not an auth failure
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('Profile not found for user:', userId, '- treating as onboarding issue')
+        }
+        return {
+          id: userId,
+          email,
+          needsProfileCompletion: true
+        }
       }
+      throw error
     }
     
-    // Fallback timeout to prevent infinite initialization
-    const timeoutId = setTimeout(() => {
-      if (mounted) {
-        console.log('⏰ Auth initialization timeout - forcing isInitializing to false')
-        setIsInitializing(false)
-      }
-    }, 2000) // Increased to 2 seconds to give Supabase time to initialize
+    return {
+      id: userId,
+      email,
+      name: profile.name,
+      hotelName: profile.hotel_name,
+      hotelId: profile.hotel_id,
+      role: profile.role,
+      provider: 'email',
+      needsProfileCompletion: !profile.name || !profile.hotel_name
+    }
+  } catch (error) {
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Error loading profile:', error)
+    }
+    return null
+  }
+}
 
-    // Listen for auth state changes - Trust Supabase's session management
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Single auth state change listener
+  useEffect(() => {
+    let mounted = true
+
+    // Initial session check
+    const initializeAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        
+        if (!mounted) return
+
+        if (session?.user) {
+          const userData = await loadUserProfile(session.user.id, session.user.email!)
+          if (mounted) {
+            setUser(userData)
+          }
+        } else {
+          if (mounted) {
+            setUser(null)
+          }
+        }
+      } catch (error) {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Error initializing auth:', error)
+        }
+        if (mounted) {
+          setUser(null)
+        }
+      } finally {
+        if (mounted) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    initializeAuth()
+
+    // Subscribe to auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return
-        
-        console.log('🔄 Auth state change:', event, session?.user?.email)
-        
-        // Only handle the events we care about - trust Supabase's session state
-        if (event === 'SIGNED_IN' && session?.user) {
-          console.log('🔄 SIGNED_IN event received, fetching profile...')
-          try {
-            // Get user profile with timeout to prevent hanging
-            const profilePromise = supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', session.user.id)
-              .single()
-            
-            const profileTimeoutPromise = new Promise((_, reject) => {
-              setTimeout(() => reject(new Error('Profile fetch timed out after 10 seconds')), 10000)
-            })
-            
-            let profileResult: any = null
-            try {
-              profileResult = await Promise.race([profilePromise, profileTimeoutPromise])
-              console.log('🔄 Profile fetched successfully in SIGNED_IN handler')
-            } catch (timeoutError) {
-              console.error('🔄 Profile fetch timed out in SIGNED_IN handler:', timeoutError)
-              // If profile fetch times out, clear the session as it's likely invalid
-              await supabase.auth.signOut()
-              setUser(null)
-              setIsInitializing(false)
-              return
-            }
-            
-            const { data: profile, error: profileError } = profileResult || { data: null, error: null }
 
-            if (profileError) {
-              console.error('Profile fetch failed:', profileError)
-              setUser(null)
-              setIsInitializing(false)
-            } else if (profile) {
-              const userData: User = {
-                id: session.user.id,
-                email: session.user.email!,
-                name: profile.name,
-                hotelName: profile.hotel_name,
-                provider: 'email'
-              }
-              console.log('🔄 Setting user state from SIGNED_IN event:', userData.email)
-              setUser(userData)
-              setIsInitializing(false)
-            } else {
-              console.error('No profile found for user')
-              setUser(null)
-              setIsInitializing(false)
-            }
-          } catch (error) {
-            console.error('Error fetching profile:', error)
-            setUser(null)
-            setIsInitializing(false)
+        if (process.env.NODE_ENV === 'development') {
+          console.log('🔄 Auth state change:', event, session?.user?.email)
+        }
+
+        if (event === 'SIGNED_IN' && session?.user) {
+          const userData = await loadUserProfile(session.user.id, session.user.email!)
+          if (mounted) {
+            setUser(userData)
+            setIsLoading(false)
           }
         } else if (event === 'SIGNED_OUT') {
-          console.log('🔄 SIGNED_OUT - setting user to null')
-          setUser(null)
-          // Always set initializing to false after handling event
-          setIsInitializing(false)
+          if (mounted) {
+            setUser(null)
+            setIsLoading(false)
+          }
         } else if (event === 'INITIAL_SESSION') {
-          console.log('🔄 INITIAL_SESSION - session:', !!session, 'user:', !!session?.user)
-          // Validate session is actually valid - if profile fetch fails, clear the session
           if (session?.user) {
-            try {
-              const { data: profile, error: profileError } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', session.user.id)
-                .single()
-
-              if (profileError || !profile) {
-                // Profile doesn't exist or fetch failed - session is invalid, clear it
-                console.log('🔄 INITIAL_SESSION - profile fetch failed, clearing invalid session')
-                console.error('Profile error:', profileError)
-                await supabase.auth.signOut()
-                setUser(null)
-              } else {
-                const userData: User = {
-                  id: session.user.id,
-                  email: session.user.email!,
-                  name: profile.name,
-                  hotelName: profile.hotel_name,
-                  provider: 'email'
-                }
-                setUser(userData)
-              }
-            } catch (error) {
-              console.error('Error fetching initial profile:', error)
-              // On error, clear the session to prevent stale state
-              console.log('🔄 INITIAL_SESSION - error occurred, clearing session')
-              await supabase.auth.signOut()
-              setUser(null)
+            const userData = await loadUserProfile(session.user.id, session.user.email!)
+            if (mounted) {
+              setUser(userData)
             }
           } else {
-            console.log('🔄 INITIAL_SESSION - no session, setting user to null')
-            setUser(null)
+            if (mounted) {
+              setUser(null)
+            }
           }
-          // Always set initializing to false after handling INITIAL_SESSION
-          setIsInitializing(false)
+          if (mounted) {
+            setIsLoading(false)
+          }
         } else if (event === 'TOKEN_REFRESHED') {
           // Token refreshed - session is still valid, no state change needed
-          console.log('🔄 TOKEN_REFRESHED - session still valid, no action needed')
-          // Do nothing - user state remains the same
-          // But still set initializing to false if it's still true (shouldn't happen, but safety)
-          setIsInitializing(false)
+          // But ensure loading is false
+          if (mounted) {
+            setIsLoading(false)
+          }
         }
-        // Ignore all other events - Supabase will handle them
       }
     )
 
     return () => {
       mounted = false
-      clearTimeout(timeoutId)
       subscription.unsubscribe()
     }
   }, [])
 
-  const login = async (email: string, password: string) => {
-    try {
-      console.log('🔐 Login function started')
-      
-      // Try to clear any existing session before attempting login
-      // This prevents conflicts when re-logging in after closing a tab
-      // Use a short timeout to prevent hanging
-      console.log('🔐 Checking for existing session...')
-      
-      let existingSession = null
-      let shouldClearSession = false
-      
-      try {
-        // Add timeout to getSession to prevent hanging
-        const getSessionPromise = supabase.auth.getSession()
-        const sessionTimeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Session check timed out')), 3000) // 3 second timeout
-        })
-        
-        const result = await Promise.race([getSessionPromise, sessionTimeoutPromise]) as any
-        
-        if (result?.data?.session) {
-          existingSession = result.data.session
-          shouldClearSession = true
-          console.log('🔐 Found existing session, will clear before login')
-        } else {
-          console.log('🔐 No existing session found')
-        }
-      } catch (error) {
-        console.warn('🔐 Session check timed out or failed, proceeding with login:', error)
-        // Continue with login - Supabase will handle session conflicts
-      }
-      
-      if (shouldClearSession && existingSession) {
-        console.log('🧹 Clearing existing session before login...')
-        const { error: signOutError } = await supabase.auth.signOut()
-        if (signOutError) {
-          console.error('🔐 Error signing out:', signOutError)
-        }
-        // Also manually clear localStorage to be thorough
-        if (typeof window !== 'undefined') {
-          Object.keys(localStorage).forEach(key => {
-            if (key.includes('supabase') || key.includes('auth') || key.startsWith('sb-')) {
-              localStorage.removeItem(key)
-            }
-          })
-          // Clear sessionStorage too
-          Object.keys(sessionStorage).forEach(key => {
-            if (key.includes('supabase') || key.includes('auth') || key.startsWith('sb-')) {
-              sessionStorage.removeItem(key)
-            }
-          })
-        }
-        // Wait a moment for the signout to complete
-        await new Promise(resolve => setTimeout(resolve, 200))
-        console.log('🧹 Session cleared')
-      }
-
-      // Now attempt the login with timeout
-      console.log('🔐 Attempting login with Supabase...')
-      
-      // Set up a listener for SIGNED_IN event as a backup signal
-      // Note: The main auth state change handler will also process SIGNED_IN and fetch profile
-      // This listener is just for detecting when login succeeds if the promise times out
-      let signedInEventReceived = false
-      let signedInUser: any = null
-      let subscription: { unsubscribe: () => void } | null = null
-      
-      const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange((event, session) => {
-        if (event === 'SIGNED_IN' && session?.user) {
-          console.log('🔐 SIGNED_IN event detected during login, user:', session.user.email)
-          signedInEventReceived = true
-          signedInUser = session.user
-        }
-      })
-      subscription = authSubscription
-      
-      const loginPromise = supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-      
-      // Add timeout to prevent hanging (increased to 60 seconds for slow networks)
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Login request timed out after 60 seconds')), 60000)
-      })
-      
-      let loginResult: any = null
-      try {
-        loginResult = await Promise.race([loginPromise, timeoutPromise])
-      } catch (timeoutError) {
-        // If timeout but SIGNED_IN event fired, login actually succeeded
-        if (signedInEventReceived && signedInUser) {
-          console.log('🔐 Login promise timed out but SIGNED_IN event received, using event data')
-          loginResult = { data: { user: signedInUser }, error: null }
-        } else {
-          throw timeoutError
-        }
-      }
-      
-      if (subscription) {
-        subscription.unsubscribe()
-      }
-      
-      const { data, error } = loginResult || { data: null, error: null }
-
-      if (error) {
-        console.error('🔐 Login error from Supabase:', error)
-        throw new Error(error.message || 'Login failed')
-      }
-      
-      // Use user from event if promise didn't return it
-      const user = data?.user || signedInUser
-      
-      if (!user) {
-        console.error('🔐 No user data returned from login')
-        throw new Error('Login failed: No user data returned')
-      }
-      
-      console.log('🔐 Login successful, user:', user.email)
-      
-      // Wait a moment to see if the main SIGNED_IN handler already fetched the profile and set the user
-      // This prevents duplicate profile fetches and race conditions
-      await new Promise(resolve => setTimeout(resolve, 300))
-      
-      // Check if user state was already set by the main handler
-      // We'll use a ref to check the current user state
-      let currentUserState: User | null = null
-      // We can't directly read state here, so we'll try to get it from Supabase session
-      // and check if we already have a profile
-      
-      console.log('🔐 Checking if profile was already fetched by main handler...')
-      
-      // Try to get profile with a short timeout
-      // If the main handler already set the user, we can use that
-      // Otherwise, we'll fetch it ourselves
-      const profilePromise = supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single()
-      
-      const profileTimeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Profile fetch timed out after 5 seconds')), 5000)
-      })
-      
-      let profileResult: any = null
-      try {
-        profileResult = await Promise.race([profilePromise, profileTimeoutPromise])
-        console.log('🔐 Profile fetched successfully')
-      } catch (timeoutError) {
-        console.warn('🔐 Profile fetch timed out - main handler may have already set user state')
-        // If profile fetch times out, the main handler likely already set the user
-        // Check if we can get the current session to verify
-        const { data: { session: currentSession } } = await supabase.auth.getSession()
-        if (currentSession?.user) {
-          console.log('🔐 Session exists, main handler likely set user. Skipping duplicate profile fetch.')
-          // The main handler already set the user, so we can return early
-          // We'll construct a minimal user data from the session
-          // But we still need profile data for the return value
-          // Let's try one more quick fetch without timeout
-          try {
-            const quickFetch = await Promise.race([
-              supabase.from('profiles').select('*').eq('id', user.id).single(),
-              new Promise((_, reject) => setTimeout(() => reject(new Error('Quick fetch timeout')), 2000))
-            ])
-            if (quickFetch.data) {
-              profileResult = quickFetch
-            } else {
-              // If we can't get profile, but user is set, that's okay
-              // The main handler already handled it - return a minimal user object
-              console.log('🔐 Main handler set user, returning minimal user data')
-              const minimalUser: User = {
-                id: user.id,
-                email: user.email!,
-                name: user.email!.split('@')[0], // Fallback name
-                hotelName: '', // Will be set by main handler
-                provider: 'email'
-              }
-              return minimalUser
-            }
-          } catch (quickError) {
-            console.log('🔐 Quick fetch also failed, but main handler set user. Returning minimal user data.')
-            // Return minimal user - main handler already set full user state
-            const minimalUser: User = {
-              id: user.id,
-              email: user.email!,
-              name: user.email!.split('@')[0], // Fallback name
-              hotelName: '', // Will be set by main handler
-              provider: 'email'
-            }
-            return minimalUser
-          }
-        } else {
-          throw timeoutError
-        }
-      }
-      
-      const { data: profile, error: profileError } = profileResult || { data: null, error: null }
-
-      if (profileError) {
-        console.error('🔐 Profile fetch error:', profileError)
-        if (profileError.code === 'PGRST116') {
-          // Profile doesn't exist, this shouldn't happen for existing users
-          throw new Error('User profile not found. Please contact support.')
-        } else {
-          throw new Error(`Failed to fetch user profile: ${profileError.message}`)
-        }
-      }
-      
-      if (!profile) {
-        console.error('🔐 No profile found')
-        throw new Error('User profile not found. Please contact support.')
-      }
-
-      console.log('🔐 Setting user state...')
-      // Set user state immediately after successful login
-      const userData: User = {
-        id: user.id,
-        email: user.email!,
-        name: profile.name,
-        hotelName: profile.hotel_name,
-        provider: 'email'
-      }
-      setUser(userData)
-      // Ensure isInitializing is false so redirect can happen
-      setIsInitializing(false)
-      console.log('🔐 Login complete, user state set')
-      toast.success('Successfully signed in!')
-      
-      // Return user data so caller can handle redirect
-      return userData
-    } catch (error) {
-      console.error('🔐 Login function error:', error)
-      // Clean up subscription on error
-      if (subscription) {
-        try {
-          subscription.unsubscribe()
-        } catch (cleanupError) {
-          // Ignore cleanup errors
-        }
-      }
-      const errorMessage = error instanceof Error ? error.message : 'Login failed. Please try again.'
-      toast.error(errorMessage)
-      throw error
+  const login = async (email: string, password: string): Promise<void> => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    
+    if (error) {
+      throw new Error(error.message || 'Login failed')
     }
+    
+    // Auth state change listener will handle profile loading and state updates
   }
 
-  const signup = async (email: string, password: string, name: string, hotelName: string) => {
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-      })
-
-      if (error) {
-        throw new Error(error.message)
-      }
-
-      if (data.user) {
-        // Create user profile
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert({
-            id: data.user.id,
-            name,
-            hotel_name: hotelName,
-          })
-
-        if (profileError) {
-          throw new Error('Failed to create user profile')
+  const signup = async (
+    email: string, 
+    password: string, 
+    name: string, 
+    hotelName: string
+  ): Promise<void> => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name,
+          hotel_name: hotelName
         }
-
-        toast.success('Account created successfully! Please check your email to confirm your account.')
-        
-        // Don't redirect immediately - user needs to confirm email first
-        // The user will be redirected after clicking the confirmation link
       }
-    } catch (error) {
-      console.error('Signup failed:', error)
-      const errorMessage = error instanceof Error ? error.message : 'Signup failed. Please try again.'
-      toast.error(errorMessage)
-      throw error
+    })
+    
+    if (error) {
+      throw new Error(error.message)
     }
+    
+    // Profile will be created by database trigger
+    // User metadata is stored in raw_user_meta_data for trigger to use
+    toast.success('Account created successfully! Please check your email to confirm your account.')
   }
 
-  const logout = async () => {
-    try {
-      // Clear user state immediately to prevent UI flicker
-      setUser(null)
-      
-      const { error } = await supabase.auth.signOut()
-      
-      if (error) {
-        throw new Error(error.message)
-      }
-
-      // Clear all auth-related localStorage
-      if (typeof window !== 'undefined') {
-        // Clear Supabase-specific keys
-        Object.keys(localStorage).forEach(key => {
-          if (key.includes('supabase') || key.includes('auth') || key.startsWith('sb-')) {
-            localStorage.removeItem(key)
-          }
-        })
-        
-        // Also clear sessionStorage for good measure
-        Object.keys(sessionStorage).forEach(key => {
-          if (key.includes('supabase') || key.includes('auth') || key.startsWith('sb-')) {
-            sessionStorage.removeItem(key)
-          }
-        })
-      }
-
-      toast.success('Successfully signed out!')
-    } catch (error) {
-      console.error('Logout failed:', error)
-      // Even if signOut fails, clear local state
-      setUser(null)
-      const errorMessage = error instanceof Error ? error.message : 'Logout failed. Please try again.'
-      toast.error(errorMessage)
-      throw error
+  const logout = async (): Promise<void> => {
+    const { error } = await supabase.auth.signOut()
+    
+    if (error) {
+      throw new Error(error.message || 'Logout failed')
     }
+    
+    // Auth state change listener will handle clearing user state
+    toast.success('Successfully signed out!')
   }
 
   const forgotPassword = async (email: string) => {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${process.env.NEXT_PUBLIC_BASE_URL}/auth/reset`
+        redirectTo: `${process.env.NEXT_PUBLIC_BASE_URL || window.location.origin}/auth/reset`
       })
 
       if (error) {
@@ -554,21 +260,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const value: AuthContextType = {
     user,
     isAuthenticated: !!user,
-    isInitializing,
+    isLoading,
     login,
     signup,
     logout,
     forgotPassword,
     resetPassword
   }
-
-  // Debug logging
-  console.log('🔍 AuthContext state:', { 
-    user: !!user, 
-    isAuthenticated: !!user, 
-    isInitializing,
-    userEmail: user?.email 
-  })
 
   return (
     <AuthContext.Provider value={value}>

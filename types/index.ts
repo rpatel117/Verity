@@ -51,9 +51,12 @@ export interface ReportFormData {
 export interface User {
   id: string;
   email: string;
-  name: string;
-  hotelName: string;
+  name?: string;
+  hotelName?: string;
+  hotelId?: string;
+  role?: string;
   provider?: 'email' | 'google' | 'microsoft';
+  needsProfileCompletion?: boolean;
 }
 
 export interface ApiResponse<T = any> {

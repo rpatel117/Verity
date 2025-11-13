@@ -20,8 +20,17 @@ serve(async (req) => {
 
   try {
     // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('Missing Supabase environment variables')
+      return new Response(
+        JSON.stringify({ valid: false, policyText: '', twoFACodeMasked: '' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     // Parse request body
@@ -98,9 +107,9 @@ serve(async (req) => {
       .insert({
         attestation_id: attestation.id,
         event_type: 'page.open',
-        event_data: {
-          ip: clientIP,
-          user_agent: userAgent,
+        ip_address: clientIP,
+        user_agent: userAgent,
+        payload: {
           timestamp: new Date().toISOString()
         }
       })

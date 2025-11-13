@@ -16,18 +16,18 @@ import { Shield, Smartphone, FileText, CheckCircle, ArrowRight, Users, Clock, Lo
 
 export default function LandingPage() {
   const router = useRouter()
-  const { isAuthenticated, isInitializing } = useAuth()
+  const { isAuthenticated, isLoading } = useAuth()
   const [showContactForm, setShowContactForm] = useState(false)
 
   // Redirect authenticated users to dashboard
   useEffect(() => {
-    if (!isInitializing && isAuthenticated) {
+    if (!isLoading && isAuthenticated) {
       router.push('/dashboard')
     }
-  }, [isAuthenticated, isInitializing, router])
+  }, [isAuthenticated, isLoading, router])
 
   // Debug logging
-  console.log('🏠 LandingPage state:', { isAuthenticated, isInitializing })
+  console.log('🏠 LandingPage state:', { isAuthenticated, isLoading })
   
   // Force show landing page after 3 seconds if stuck
   useEffect(() => {
@@ -39,13 +39,13 @@ export default function LandingPage() {
   }, [])
   
   // Show loading while checking auth
-  if (isInitializing) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-sm text-gray-600">Loading...</p>
-          <p className="text-xs text-gray-500 mt-2">isInitializing: {isInitializing.toString()}</p>
+          <p className="text-xs text-gray-500 mt-2">isLoading: {isLoading.toString()}</p>
           <button 
             onClick={() => {
               console.log('🏠 Manual override - forcing landing page')

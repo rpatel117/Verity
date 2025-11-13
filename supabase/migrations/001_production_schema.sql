@@ -31,17 +31,31 @@ CREATE TABLE IF NOT EXISTS guests (
 
 -- 4. Revise attestations table with new structure
 -- Drop old table and recreate with new schema
+-- NOTE: This table uses both normalized (guest_id) and denormalized columns
+-- (hotel_id, guest_full_name, etc.) for query performance. The denormalized
+-- columns allow edge functions to query attestations without joins.
 DROP TABLE IF EXISTS attestations CASCADE;
 
 CREATE TABLE attestations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   guest_id UUID NOT NULL REFERENCES guests(id) ON DELETE CASCADE,
+  -- Denormalized columns for performance (used by edge functions)
+  hotel_id UUID NOT NULL REFERENCES hotels(id) ON DELETE CASCADE,
+  guest_full_name TEXT NOT NULL,
+  guest_phone_e164 TEXT NOT NULL,
+  cc_last_4 TEXT NOT NULL,
+  dl_number TEXT,
+  dl_state TEXT,
+  check_in_date DATE NOT NULL,
+  check_out_date DATE NOT NULL,
+  -- End denormalized columns
   code_hash TEXT NOT NULL,                  -- bcrypt hash of 6-digit code
   code_enc TEXT,                            -- optional: short-lived encrypted raw code for guest display
   token TEXT NOT NULL UNIQUE,               -- signed token (JWT)
   sms_sid TEXT,
   sms_status TEXT,                          -- accepted/sent/delivered/failed (Twilio callbacks)
   policy_text TEXT NOT NULL,
+  status TEXT CHECK (status IN ('sent','verified','expired')) DEFAULT 'sent',
   sent_at TIMESTAMPTZ DEFAULT NOW(),
   verified_at TIMESTAMPTZ,
   verification_method TEXT CHECK (verification_method IN ('code','link')),
@@ -49,18 +63,20 @@ CREATE TABLE attestations (
 );
 
 -- 5. Update attestation_events table with more event types
+-- NOTE: This table uses both discrete fields (ip, user_agent, latitude, etc.)
+-- and a payload JSONB field for flexibility. Edge functions may use either approach.
 DROP TABLE IF EXISTS attestation_events CASCADE;
 
 CREATE TABLE attestation_events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   attestation_id UUID NOT NULL REFERENCES attestations(id) ON DELETE CASCADE,
   event_type TEXT NOT NULL,    -- 'sms.sent','sms.status','page.open','geo.capture','policy.accept','code.submit'
-  ip TEXT,
+  ip_address INET,             -- IP address (using INET type for proper storage)
   user_agent TEXT,
   latitude NUMERIC,
   longitude NUMERIC,
   accuracy NUMERIC,
-  payload JSONB,
+  payload JSONB,               -- Flexible JSONB field for additional event data
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
